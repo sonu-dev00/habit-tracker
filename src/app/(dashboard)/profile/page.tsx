@@ -16,9 +16,10 @@ import { Avatar } from "@/components/ui/avatar";
 import { useSession } from "next-auth/react";
 import { useXP } from "@/lib/hooks/use-xp";
 import { useAnalytics } from "@/lib/hooks/use-analytics";
-import { LEVELS, ACHIEVEMENTS } from "@/lib/constants";
+import { useAchievements } from "@/lib/hooks/use-achievements";
+import { LEVELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { Achievement } from "@/types";
+import type { Achievement } from "@/lib/hooks/use-achievements";
 
 const stagger = {
   container: { animate: { transition: { staggerChildren: 0.05 } } },
@@ -31,36 +32,6 @@ const stagger = {
     },
   },
 };
-
-const achievementIcons: Record<string, string> = {};
-ACHIEVEMENTS.forEach((a) => {
-  achievementIcons[a.type] = a.icon;
-});
-
-function mockAchievements(_xp: number): Achievement[] {
-  const unlockedTypes = [
-    "first_habit",
-    "seven_day_streak",
-    "hundred_completions",
-    "five_categories",
-    "early_bird",
-    "comeback_king",
-  ];
-  const now = new Date();
-  return ACHIEVEMENTS.map((a) => ({
-    id: a.type,
-    habitId: null,
-    userId: "user-1",
-    type: a.type,
-    title: a.title,
-    description: a.description,
-    icon: a.icon,
-    xpReward: a.xpReward,
-    unlockedAt: unlockedTypes.includes(a.type)
-      ? new Date(now.getTime() - Math.random() * 30 * 24 * 60 * 60 * 1000)
-      : null,
-  }));
-}
 
 function AchievementCard({
   achievement,
@@ -177,8 +148,8 @@ export default function ProfilePage() {
     Math.round((xpInLevel / xpNeeded) * 100)
   );
 
-  const achievements = useMemo(() => mockAchievements(totalXp), [totalXp]);
-  const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
+  const { data: achievements = [] } = useAchievements();
+  const unlockedCount = useMemo(() => achievements.filter((a: Achievement) => a.unlockedAt).length, [achievements]);
 
   return (
     <motion.div

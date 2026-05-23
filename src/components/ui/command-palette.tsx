@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, LayoutDashboard, CheckSquare, BarChart3, MessageSquare, Timer, BookTemplate, Trophy, Sparkles, CreditCard, ArrowRight } from "lucide-react";
+import { Search, LayoutDashboard, CheckSquare, BarChart3, MessageSquare, Timer, BookTemplate, Trophy, Sparkles, CreditCard, Medal, LifeBuoy, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -14,7 +14,9 @@ const PAGES = [
   { href: "/pomodoro", label: "Focus Timer", icon: Timer },
   { href: "/achievements", label: "Achievements", icon: Trophy },
   { href: "/templates", label: "Templates", icon: BookTemplate },
+  { href: "/leaderboard", label: "Leaderboard", icon: Medal },
   { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/support", label: "Support", icon: LifeBuoy },
   { href: "/settings", label: "Settings", icon: Sparkles },
 ];
 

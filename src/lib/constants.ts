@@ -82,7 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", requiresAuth: true },
   { title: "Habits", href: "/habits", requiresAuth: true },
   { title: "Analytics", href: "/analytics", requiresAuth: true, requiresPro: true },
-  { title: "AI Coach", href: "/ai-coach", requiresAuth: true },
+  { title: "AI Coach", href: "/ai-chat", requiresAuth: true },
   { title: "Leaderboard", href: "/leaderboard", requiresAuth: true },
   { title: "Settings", href: "/settings", requiresAuth: true },
   { title: "Admin", href: "/admin", requiresAuth: true, requiresAdmin: true },

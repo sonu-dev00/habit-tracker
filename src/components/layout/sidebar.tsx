@@ -18,6 +18,8 @@ import {
   X,
   LogOut,
   Settings,
+  Medal,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
@@ -31,7 +33,9 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ai-chat", label: "AI Coach", icon: MessageSquare },
   { href: "/pomodoro", label: "Focus Timer", icon: Timer },
+  { href: "/leaderboard", label: "Leaderboard", icon: Medal },
   { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/support", label: "Support", icon: LifeBuoy },
 ];
 
 interface SidebarProps {

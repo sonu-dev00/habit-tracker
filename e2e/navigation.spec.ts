@@ -11,6 +11,8 @@ const PROTECTED_PAGES = [
   "/achievements",
   "/billing",
   "/profile",
+  "/leaderboard",
+  "/support",
   "/admin",
 ];
 

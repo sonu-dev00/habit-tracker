@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CreditCard, Users, Clock, DollarSign, XCircle, RotateCcw } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +31,31 @@ async function fetchSubscriptions(params: { plan: string; status: string }) {
 export default function AdminSubscriptionsPage() {
   const [planFilter, setPlanFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-subscriptions", planFilter, statusFilter],
     queryFn: () => fetchSubscriptions({ plan: planFilter, status: statusFilter }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/admin/subscriptions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-subscriptions"] }),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/admin/subscriptions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-subscriptions"] }),
   });
 
   const subscriptions: Subscription[] = data?.data ?? [];
@@ -168,8 +189,8 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="xs" icon={XCircle} disabled={sub.status !== "active"} />
-                          <Button variant="ghost" size="xs" icon={RotateCcw} disabled={sub.status !== "canceled"} />
+                          <Button variant="ghost" size="xs" icon={XCircle} disabled={sub.status !== "active"} loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate(sub.id)} />
+                          <Button variant="ghost" size="xs" icon={RotateCcw} disabled={sub.status !== "canceled"} loading={restoreMutation.isPending} onClick={() => restoreMutation.mutate(sub.id)} />
                         </div>
                       </td>
                     </tr>
