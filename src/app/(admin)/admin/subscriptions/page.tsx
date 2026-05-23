@@ -1,79 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CreditCard, Users, Clock, DollarSign, XCircle, RotateCcw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface SubscriptionData {
+interface Subscription {
   id: string;
-  user: { id: string; name: string | null; email: string | null };
   plan: string;
   status: string;
-  stripeCurrentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  stripeCurrentPeriodEnd: string | null;
   createdAt: string;
+  user: { id: string; name: string | null; email: string | null; image: string | null };
+}
+
+async function fetchSubscriptions(params: { plan: string; status: string }) {
+  const searchParams = new URLSearchParams();
+  if (params.plan) searchParams.set("plan", params.plan);
+  if (params.status) searchParams.set("status", params.status);
+  const res = await fetch(`/api/admin/subscriptions?${searchParams}`);
+  if (!res.ok) throw new Error("Failed to fetch subscriptions");
+  return res.json();
 }
 
 export default function AdminSubscriptionsPage() {
-  const [subscriptions, setSubscriptions] = useState<SubscriptionData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [planFilter, setPlanFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  useEffect(() => {
-    fetchSubscriptions();
-  }, [planFilter, statusFilter]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-subscriptions", planFilter, statusFilter],
+    queryFn: () => fetchSubscriptions({ plan: planFilter, status: statusFilter }),
+  });
 
-  async function fetchSubscriptions() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (planFilter) params.set("plan", planFilter);
-      if (statusFilter) params.set("status", statusFilter);
-
-      const res = await fetch(`/api/admin/users?limit=100`);
-      const json = await res.json();
-      if (json.success) {
-        const subs = json.data
-          .filter((u: any) => u.subscription)
-          .map((u: any) => ({
-            id: u.subscription.id,
-            user: { id: u.id, name: u.name, email: u.email },
-            plan: u.subscription.plan,
-            status: u.subscription.status,
-            stripeCurrentPeriodEnd: u.subscription.stripeCurrentPeriodEnd,
-            cancelAtPeriodEnd: u.subscription.cancelAtPeriodEnd || false,
-            createdAt: u.createdAt,
-          }));
-        setSubscriptions(subs);
-      }
-    } catch (error) {
-      console.error("Failed to fetch subscriptions:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const stats = {
-    active: subscriptions.filter((s) => s.status === "active" && !s.cancelAtPeriodEnd).length,
-    trial: subscriptions.filter((s) => s.status === "trialing").length,
-    canceled: subscriptions.filter((s) => s.status === "canceled" || s.cancelAtPeriodEnd).length,
-    pastDue: subscriptions.filter((s) => s.status === "past_due").length,
-  };
-
-  const totalRevenue = subscriptions
-    .filter((s) => s.status === "active")
-    .length * 9;
+  const subscriptions: Subscription[] = data?.data ?? [];
+  const stats = data?.stats ?? { active: 0, trial: 0, canceled: 0, pastDue: 0, totalRevenue: 0 };
 
   const statCards = [
     { label: "Active", value: stats.active, icon: CreditCard, color: "text-emerald-400" },
     { label: "Trial", value: stats.trial, icon: Clock, color: "text-blue-400" },
     { label: "Canceled", value: stats.canceled, icon: XCircle, color: "text-red-400" },
-    { label: "Est. Revenue", value: `$${totalRevenue}/mo`, icon: DollarSign, color: "text-yellow-400" },
+    { label: "Est. Revenue", value: `$${stats.totalRevenue}/mo`, icon: DollarSign, color: "text-yellow-400" },
   ];
 
   return (
@@ -148,7 +119,7 @@ export default function AdminSubscriptionsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading
+              {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-white/5">
                       {Array.from({ length: 6 }).map((_, j) => (
@@ -173,13 +144,7 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge
-                          variant={
-                            sub.plan === "PRO"
-                              ? "brand"
-                              : sub.plan === "TEAMS"
-                              ? "info"
-                              : "default"
-                          }
+                          variant={sub.plan === "PRO" ? "brand" : sub.plan === "TEAMS" ? "info" : "default"}
                           size="sm"
                         >
                           {sub.plan}
@@ -187,15 +152,7 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge
-                          variant={
-                            sub.status === "active"
-                              ? "success"
-                              : sub.status === "trialing"
-                              ? "info"
-                              : sub.status === "past_due"
-                              ? "warning"
-                              : "error"
-                          }
+                          variant={sub.status === "active" ? "success" : sub.status === "trialing" ? "info" : sub.status === "past_due" ? "warning" : "error"}
                           size="sm"
                         >
                           {sub.cancelAtPeriodEnd ? "Canceled" : sub.status}
@@ -203,9 +160,7 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-4 text-gray-400">
                         {sub.stripeCurrentPeriodEnd
-                          ? new Date(
-                              sub.stripeCurrentPeriodEnd
-                            ).toLocaleDateString()
+                          ? new Date(sub.stripeCurrentPeriodEnd).toLocaleDateString()
                           : "N/A"}
                       </td>
                       <td className="py-3 px-4 text-gray-400">
@@ -213,18 +168,8 @@ export default function AdminSubscriptionsPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            icon={XCircle}
-                            disabled={sub.status !== "active"}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            icon={RotateCcw}
-                            disabled={sub.status !== "canceled"}
-                          />
+                          <Button variant="ghost" size="xs" icon={XCircle} disabled={sub.status !== "active"} />
+                          <Button variant="ghost" size="xs" icon={RotateCcw} disabled={sub.status !== "canceled"} />
                         </div>
                       </td>
                     </tr>

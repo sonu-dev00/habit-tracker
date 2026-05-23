@@ -8,8 +8,13 @@ const globalForPrisma = globalThis as unknown as {
 function createClient(): PrismaClient {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const adapter = new PrismaPg({ connectionString: url });
-  return new PrismaClient({ adapter });
+  const adapter = new PrismaPg({
+    connectionString: url,
+    max: 10,
+    idleTimeoutMillis: 30000,
+  });
+  const client = new PrismaClient({ adapter, log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"] });
+  return client;
 }
 
 export function getPrisma(): PrismaClient {

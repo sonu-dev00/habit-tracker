@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { chatWithAI, trackUsage, checkUsageLimit } from "@/lib/ai";
 import { rateLimiter } from "@/lib/rate-limit";
+import { sanitize } from "@/lib/sanitize";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rateCheck = rateLimiter.check(`ai-chat:${session.user.id}`);
+    const rateCheck = await rateLimiter.check(`ai-chat:${session.user.id}`);
     if (!rateCheck.success) {
       return NextResponse.json(
         {
@@ -47,7 +48,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const response = await chatWithAI(session.user.id, message, context || {});
+    const sanitizedMessage = sanitize(message);
+    const response = await chatWithAI(session.user.id, sanitizedMessage, context || {});
 
     const estimatedTokens = Math.ceil((message.length + response.length) / 4);
     await trackUsage(session.user.id, "ai-chat", estimatedTokens);

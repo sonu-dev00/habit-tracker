@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cleanupOldAiMessages } from "@/lib/ai";
 import { sendWeeklyReviewEmail } from "@/lib/email";
 
 type CronHandler = () => Promise<void>;
@@ -162,11 +163,14 @@ const cleanupOldSessions = defineCronJob(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    await prisma.session.deleteMany({
-      where: { expires: { lt: thirtyDaysAgo } },
-    });
+    const [sessionsDeleted, messagesDeleted] = await Promise.all([
+      prisma.session.deleteMany({
+        where: { expires: { lt: thirtyDaysAgo } },
+      }),
+      cleanupOldAiMessages(),
+    ]);
 
-    console.log("[Cron] Old sessions cleaned up");
+    console.log(`[Cron] Cleaned up: ${sessionsDeleted} sessions, ${messagesDeleted} AI messages`);
   },
 );
 

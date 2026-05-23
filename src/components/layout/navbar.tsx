@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   Menu,
   Search,
@@ -10,10 +11,12 @@ import {
   Settings,
   ChevronRight,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { NotificationDropdown } from "@/components/ui/notification-dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,22 +37,19 @@ const breadcrumbLabels: Record<string, string> = {
 
 interface NavbarProps {
   onMenuClick: () => void;
-  user?: {
-    name: string;
-    email: string;
-    image?: string | null;
-  };
+  onSearchOpen?: () => void;
+  user?: { name: string; email: string; image?: string | null };
 }
 
-export function Navbar({ onMenuClick, user }: NavbarProps) {
+export function Navbar({ onMenuClick, onSearchOpen, user }: NavbarProps) {
   const pathname = usePathname();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen] = useState(false);
+
+  const handleSignOut = useCallback(async () => {
+    await signOut({ callbackUrl: "/" });
+  }, []);
 
   const segments = pathname.split("/").filter(Boolean);
-  const currentLabel =
-    segments.length > 0
-      ? breadcrumbLabels[segments[segments.length - 1]] || segments[segments.length - 1].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-      : "Dashboard";
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-white/10 bg-gray-950/80 backdrop-blur-xl px-4 lg:px-6">
@@ -94,24 +94,21 @@ export function Navbar({ onMenuClick, user }: NavbarProps) {
           "hidden md:flex items-center",
           searchOpen && "flex"
         )}>
-          <div className="relative w-56 lg:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full rounded-lg border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-            />
-          </div>
+          <button
+            onClick={onSearchOpen}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 py-1.5 px-3 text-sm text-gray-500 hover:text-gray-300 hover:border-white/20 transition-all w-56 lg:w-72"
+          >
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Search...</span>
+            <kbd className="hidden lg:inline-flex items-center gap-1 rounded border border-white/10 bg-white/10 px-1.5 py-0.5 text-[10px] font-mono text-gray-600">
+              ⌘K
+            </kbd>
+          </button>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative h-9 w-9 p-0 hidden md:flex"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 ring-2 ring-gray-950" />
-        </Button>
+        <div className="hidden md:flex">
+          <NotificationDropdown />
+        </div>
 
         <Link
           href="/settings"
@@ -144,7 +141,11 @@ export function Navbar({ onMenuClick, user }: NavbarProps) {
               <Link href="/settings">Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-400 hover:text-red-300 hover:bg-red-500/10">
+            <DropdownMenuItem
+              className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

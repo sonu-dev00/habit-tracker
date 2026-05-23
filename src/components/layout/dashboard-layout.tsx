@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, lazy, Suspense, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
+
+const CommandPalette = lazy(() =>
+  import("@/components/ui/command-palette").then((m) => ({ default: m.CommandPalette }))
+);
+const OnboardingWizard = lazy(() =>
+  import("@/components/ui/onboarding-wizard").then((m) => ({ default: m.OnboardingWizard }))
+);
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -18,6 +25,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, user, level, xp }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-950">
@@ -32,8 +40,11 @@ export function DashboardLayout({ children, user, level, xp }: DashboardLayoutPr
       <div className="flex flex-1 flex-col md:pl-64">
         <Navbar
           onMenuClick={() => setSidebarOpen(true)}
+          onSearchOpen={() => setSearchOpen(true)}
           user={user}
         />
+        <Suspense fallback={null}><CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} /></Suspense>
+        <Suspense fallback={null}><OnboardingWizard /></Suspense>
 
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="relative">

@@ -1,26 +1,30 @@
 "use client";
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { useUserStore, useXPStore } from "@/store";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useSession } from "next-auth/react";
+import { useXP } from "@/lib/hooks/use-xp";
 
 export default function DashboardRootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const name = useUserStore((s) => s.name);
-  const email = useUserStore((s) => s.email);
-  const image = useUserStore((s) => s.image);
-  const level = useXPStore((s) => s.level);
-  const xp = useXPStore((s) => s.xp);
+  const { data: session } = useSession();
+  const { data: xpData } = useXP();
+  const user = session?.user;
 
   return (
     <DashboardLayout
-      user={{ name: name ?? "", email: email ?? "", image }}
-      level={level}
-      xp={xp}
+      user={{
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+        image: user?.image,
+      }}
+      level={xpData?.level ?? 1}
+      xp={xpData?.xp ?? 0}
     >
-      {children}
+      <ErrorBoundary>{children}</ErrorBoundary>
     </DashboardLayout>
   );
 }

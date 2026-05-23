@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Search, Shield, ShieldOff, Trash2, Eye, ChevronLeft, ChevronRight, Ban, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Shield, ShieldOff, Eye, CheckCircle, Ban, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,93 +9,32 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface UserData {
-  id: string;
-  name: string | null;
-  email: string | null;
-  role: string;
-  banned: boolean;
-  banReason: string | null;
-  image: string | null;
-  createdAt: string;
-  subscription: {
-    plan: string;
-    status: string;
-    stripeCurrentPeriodEnd: string | null;
-  } | null;
-  userHabitData: {
-    totalCompletions: number;
-    streak: number;
-    xp: number;
-  } | null;
-  _count: {
-    habits: number;
-    completions: number;
-  };
-}
+import { useAdminUsers, useUpdateUser } from "@/lib/hooks/use-admin-data";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      params.set("page", String(page));
-      params.set("limit", "20");
-      if (roleFilter) params.set("role", roleFilter);
-      if (statusFilter) params.set("status", statusFilter);
-      if (planFilter) params.set("plan", planFilter);
+  const { data, isLoading } = useAdminUsers(page, search, roleFilter, statusFilter, planFilter);
+  const updateUser = useUpdateUser();
 
-      const res = await fetch(`/api/admin/users?${params}`);
-      const json = await res.json();
-
-      if (json.success) {
-        setUsers(json.data);
-        setTotalPages(json.pagination.totalPages);
-        setTotal(json.pagination.total);
-      }
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, page, roleFilter, statusFilter, planFilter]);
-
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const users = data?.data ?? [];
+  const totalPages = data?.pagination?.totalPages ?? 1;
+  const total = data?.pagination?.total ?? 0;
 
   useEffect(() => {
     setPage(1);
   }, [search, roleFilter, statusFilter, planFilter]);
 
-  async function handleAction(userId: string, action: string, reason?: string) {
-    try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason }),
-      });
-      if (res.ok) {
-        fetchUsers();
-        setDetailOpen(false);
-      }
-    } catch (error) {
-      console.error("Failed to perform action:", error);
-    }
+  async function handleAction(userId: string, action: string) {
+    updateUser.mutate({ userId, action }, {
+      onSuccess: () => setDetailOpen(false),
+    });
   }
 
   return (
@@ -173,7 +112,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {loading
+              {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-white/5">
                       {Array.from({ length: 8 }).map((_, j) => (
@@ -225,7 +164,7 @@ export default function AdminUsersPage() {
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-gray-400">
-                        {user._count.habits}
+                        {user._count?.habits ?? 0}
                       </td>
                       <td className="py-3 px-4 text-gray-400">
                         {new Date(user.createdAt).toLocaleDateString()}

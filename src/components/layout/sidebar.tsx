@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -11,8 +12,10 @@ import {
   BarChart3,
   MessageSquare,
   Timer,
+  BookTemplate,
+  Trophy,
+  CreditCard,
   X,
-  ChevronLeft,
   LogOut,
   Settings,
 } from "lucide-react";
@@ -23,9 +26,12 @@ import { Badge } from "@/components/ui/badge";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/habits", label: "Habits", icon: CheckSquare },
+  { href: "/templates", label: "Templates", icon: BookTemplate },
+  { href: "/achievements", label: "Achievements", icon: Trophy },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ai-chat", label: "AI Coach", icon: MessageSquare },
   { href: "/pomodoro", label: "Focus Timer", icon: Timer },
+  { href: "/billing", label: "Billing", icon: CreditCard },
 ];
 
 interface SidebarProps {
@@ -43,6 +49,9 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarProps) {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const handleSignOut = useCallback(async () => {
+    await signOut({ callbackUrl: "/" });
+  }, []);
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -149,7 +158,10 @@ export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarPro
             <Settings className="h-3.5 w-3.5" />
             Settings
           </Link>
-          <button className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-1">
+          <button
+            onClick={handleSignOut}
+            className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-1"
+          >
             <LogOut className="h-3.5 w-3.5" />
             Logout
           </button>

@@ -1,75 +1,105 @@
+import { Redis } from "ioredis";
+
+function getRedis(): Redis | null {
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+  return new Redis(url, { maxRetriesPerRequest: 3, retryStrategy: (times) => Math.min(times * 50, 2000) });
+}
+
 export class RateLimiter {
-  private requests: Map<string, { count: number; resetAt: number }>;
+  private redis: Redis | null;
   private windowMs: number;
   private maxRequests: number;
 
   constructor(windowMs: number = 60000, maxRequests: number = 100) {
-    this.requests = new Map();
+    this.redis = null;
     this.windowMs = windowMs;
     this.maxRequests = maxRequests;
   }
 
-  private getKey(identifier: string): string {
-    return identifier;
+  private async ensureRedis(): Promise<Redis | null> {
+    if (!this.redis) {
+      this.redis = getRedis();
+    }
+    return this.redis;
   }
 
-  check(identifier: string): { success: boolean; remaining: number; resetAt: number } {
-    const key = this.getKey(identifier);
+  async check(identifier: string): Promise<{ success: boolean; remaining: number; resetAt: number }> {
+    const redis = await this.ensureRedis();
+    if (!redis) {
+      return { success: true, remaining: this.maxRequests, resetAt: Date.now() + this.windowMs };
+    }
+
+    const key = `ratelimit:${identifier}`;
     const now = Date.now();
-    const entry = this.requests.get(key);
+    const windowStart = now - this.windowMs;
 
-    if (!entry || now >= entry.resetAt) {
-      this.requests.set(key, { count: 1, resetAt: now + this.windowMs });
-      return { success: true, remaining: this.maxRequests - 1, resetAt: now + this.windowMs };
+    const multi = redis.multi();
+    multi.zremrangebyscore(key, 0, windowStart);
+    multi.zadd(key, now, `${now}:${Math.random()}`);
+    multi.zcard(key);
+    multi.pexpire(key, this.windowMs);
+    multi.pttl(key);
+
+    const results = await multi.exec();
+    if (!results) {
+      return { success: true, remaining: this.maxRequests, resetAt: now + this.windowMs };
     }
 
-    if (entry.count >= this.maxRequests) {
-      return { success: false, remaining: 0, resetAt: entry.resetAt };
+    const count = results[2]?.[1] as number || 0;
+    const ttl = results[4]?.[1] as number || this.windowMs;
+
+    return {
+      success: count <= this.maxRequests,
+      remaining: Math.max(0, this.maxRequests - count),
+      resetAt: now + ttl,
+    };
+  }
+
+  async reset(identifier: string): Promise<void> {
+    const redis = await this.ensureRedis();
+    if (redis) {
+      await redis.del(`ratelimit:${identifier}`);
     }
-
-    entry.count++;
-    return { success: true, remaining: this.maxRequests - entry.count, resetAt: entry.resetAt };
   }
 
-  reset(identifier: string): void {
-    this.requests.delete(this.getKey(identifier));
-  }
+  async getRemaining(identifier: string): Promise<number> {
+    const redis = await this.ensureRedis();
+    if (!redis) return this.maxRequests;
 
-  getRemaining(identifier: string): number {
-    const key = this.getKey(identifier);
-    const entry = this.requests.get(key);
-    if (!entry || Date.now() >= entry.resetAt) return this.maxRequests;
-    return Math.max(0, this.maxRequests - entry.count);
-  }
-
-  getResetAt(identifier: string): number | null {
-    const entry = this.requests.get(this.getKey(identifier));
-    return entry ? entry.resetAt : null;
-  }
-
-  cleanup(): void {
+    const key = `ratelimit:${identifier}`;
     const now = Date.now();
-    for (const [key, entry] of this.requests.entries()) {
-      if (now >= entry.resetAt) {
-        this.requests.delete(key);
-      }
-    }
+    const windowStart = now - this.windowMs;
+
+    await redis.zremrangebyscore(key, 0, windowStart);
+    const count = await redis.zcard(key);
+    return Math.max(0, this.maxRequests - count);
+  }
+
+  async getResetAt(identifier: string): Promise<number | null> {
+    const redis = await this.ensureRedis();
+    if (!redis) return null;
+
+    const key = `ratelimit:${identifier}`;
+    const ttl = await redis.pttl(key);
+    if (ttl <= 0) return null;
+    return Date.now() + ttl;
   }
 }
 
 const globalForRateLimiter = globalThis as unknown as {
-  rateLimiter: RateLimiter | undefined;
+  defaultLimiter: RateLimiter | undefined;
 };
 
-export const rateLimiter = globalForRateLimiter.rateLimiter ?? new RateLimiter(60000, 100);
-
-if (process.env.NODE_ENV !== "production") {
-  globalForRateLimiter.rateLimiter = rateLimiter;
+function createDefault(): RateLimiter {
+  return new RateLimiter(60000, 100);
 }
 
-setInterval(() => {
-  rateLimiter.cleanup();
-}, 60000);
+export const rateLimiter = globalForRateLimiter.defaultLimiter ?? createDefault();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForRateLimiter.defaultLimiter = rateLimiter;
+}
 
 export const authLimiter = new RateLimiter(60000, 5);
 export const apiLimiter = new RateLimiter(60000, 60);

@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   BarChart3,
   TrendingUp,
   Users,
   Activity,
-  PieChart,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AreaChart,
@@ -26,59 +23,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { useAdminAnalytics } from "@/lib/hooks/use-admin";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
-interface AnalyticsData {
-  revenueMonthly: { month: string; revenue: number }[];
-  userAcquisition: { month: string; users: number }[];
-  planDistribution: { name: string; value: number }[];
-  churnRate: number;
-  featureUsage: { name: string; usage: number }[];
-  totalUsers: number;
-  activeUsers: number;
-  totalRevenue: number;
-  avgRevenuePerUser: number;
-}
-
 export default function AdminAnalyticsPage() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useAdminAnalytics();
 
-  useEffect(() => {
-    const mockData: AnalyticsData = {
-      revenueMonthly: Array.from({ length: 12 }, (_, i) => ({
-        month: new Date(2025, i, 1).toLocaleString("en-US", { month: "short" }),
-        revenue: Math.floor(Math.random() * 30000 + 10000),
-      })),
-      userAcquisition: Array.from({ length: 12 }, (_, i) => ({
-        month: new Date(2025, i, 1).toLocaleString("en-US", { month: "short" }),
-        users: Math.floor(Math.random() * 500 + 100),
-      })),
-      planDistribution: [
-        { name: "Free", value: 65 },
-        { name: "Pro", value: 25 },
-        { name: "Teams", value: 10 },
-      ],
-      churnRate: 3.2,
-      featureUsage: [
-        { name: "Habit Tracking", usage: 95 },
-        { name: "Streaks", usage: 82 },
-        { name: "AI Coach", usage: 45 },
-        { name: "Analytics", usage: 38 },
-        { name: "Pomodoro", usage: 28 },
-        { name: "Challenges", usage: 22 },
-      ],
-      totalUsers: 12500,
-      activeUsers: 8200,
-      totalRevenue: 540000,
-      avgRevenuePerUser: 43.2,
-    };
-    setData(mockData);
-    setLoading(false);
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -98,11 +50,14 @@ export default function AdminAnalyticsPage() {
 
   if (!data) return null;
 
+  const totalUsers = data.planDistribution.reduce((s, p) => s + p.count, 0);
+  const proUsers = data.planDistribution.find((p) => p.plan === "PRO")?.count || 0;
+
   const summaryCards = [
-    { label: "Total Users", value: data.totalUsers.toLocaleString(), icon: Users, color: "text-blue-400" },
-    { label: "Active Users", value: data.activeUsers.toLocaleString(), icon: Activity, color: "text-emerald-400" },
-    { label: "Total Revenue", value: `$${data.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-yellow-400" },
-    { label: "Churn Rate", value: `${data.churnRate}%`, icon: BarChart3, color: "text-red-400" },
+    { label: "Total Users", value: totalUsers.toLocaleString(), icon: Users, color: "text-blue-400" },
+    { label: "Pro Users", value: proUsers.toLocaleString(), icon: Activity, color: "text-emerald-400" },
+    { label: "Monthly Revenue", value: `$${data.revenue[data.revenue.length - 1]?.amount.toLocaleString() || "0"}`, icon: TrendingUp, color: "text-yellow-400" },
+    { label: "Completions", value: (data.featureUsage[0]?.usage || 0).toLocaleString(), icon: BarChart3, color: "text-purple-400" },
   ];
 
   return (
@@ -138,9 +93,9 @@ export default function AdminAnalyticsPage() {
           <h3 className="text-sm font-medium text-gray-300 mb-4">
             Revenue (Monthly)
           </h3>
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.revenueMonthly}>
+              <AreaChart data={data.revenue}>
                 <defs>
                   <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -151,7 +106,7 @@ export default function AdminAnalyticsPage() {
                 <XAxis dataKey="month" tick={{ fill: "#6b7280", fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
                 <Tooltip contentStyle={{ background: "rgba(17,24,39,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#f1f5f9" }} />
-                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fill="url(#revenueGrad)" />
+                <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2} fill="url(#revenueGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -161,7 +116,7 @@ export default function AdminAnalyticsPage() {
           <h3 className="text-sm font-medium text-gray-300 mb-4">
             User Acquisition
           </h3>
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.userAcquisition}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -180,11 +135,11 @@ export default function AdminAnalyticsPage() {
           <h3 className="text-sm font-medium text-gray-300 mb-4">
             Plan Distribution
           </h3>
-          <div className="h-64">
+          <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <RePieChart>
                 <Pie
-                  data={data.planDistribution}
+                  data={data.planDistribution.map((p) => ({ name: p.plan, value: p.count }))}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -220,17 +175,17 @@ export default function AdminAnalyticsPage() {
           </h3>
           <div className="space-y-3">
             {data.featureUsage.map((feature) => (
-              <div key={feature.name}>
+              <div key={feature.feature}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-400">{feature.name}</span>
+                  <span className="text-sm text-gray-400">{feature.feature}</span>
                   <span className="text-sm text-gray-200 font-medium">
-                    {feature.usage}%
+                    {feature.usage.toLocaleString()}
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-                    style={{ width: `${feature.usage}%` }}
+                    style={{ width: `${Math.min(100, (feature.usage / 10000) * 100)}%` }}
                   />
                 </div>
               </div>

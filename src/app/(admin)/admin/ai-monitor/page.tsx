@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Brain, MessageSquare, Zap, AlertTriangle, Activity } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AreaChart,
   Area,
@@ -13,136 +13,138 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-interface AiMonitorData {
-  totalRequests: number;
-  activeUsers: number;
-  avgResponseTime: number;
-  errorRate: number;
-  usageOverTime: { date: string; requests: number }[];
-  recentActivity: { time: string; user: string; type: string; tokens: number }[];
-  endpoints: { name: string; count: number; avgTokens: number }[];
-}
+import { useAiUsage } from "@/lib/hooks/use-admin-data";
 
 export default function AiMonitorPage() {
-  const [data] = useState<AiMonitorData>({
-    totalRequests: 15420,
-    activeUsers: 892,
-    avgResponseTime: 1.2,
-    errorRate: 0.8,
-    usageOverTime: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      requests: Math.floor(Math.random() * 200 + 300),
-    })),
-    recentActivity: [
-      { time: "2 min ago", user: "user_3f8a", type: "chat", tokens: 245 },
-      { time: "5 min ago", user: "user_7b2c", type: "motivate", tokens: 120 },
-      { time: "12 min ago", user: "user_1d4e", type: "weekly-review", tokens: 380 },
-      { time: "18 min ago", user: "user_9a5f", type: "roast", tokens: 95 },
-      { time: "25 min ago", user: "user_4c6b", type: "chat", tokens: 512 },
-    ],
-    endpoints: [
-      { name: "Chat", count: 8230, avgTokens: 340 },
-      { name: "Motivate", count: 3420, avgTokens: 120 },
-      { name: "Roast", count: 1890, avgTokens: 95 },
-      { name: "Weekly Review", count: 1240, avgTokens: 380 },
-      { name: "Quote", count: 640, avgTokens: 50 },
-    ],
-  });
+  const { data, isLoading } = useAiUsage();
 
-  const statCards = [
-    { label: "Total Requests", value: data.totalRequests.toLocaleString(), icon: Brain, color: "text-purple-400" },
-    { label: "Active Users", value: data.activeUsers.toLocaleString(), icon: MessageSquare, color: "text-blue-400" },
-    { label: "Avg Response", value: `${data.avgResponseTime}s`, icon: Zap, color: "text-emerald-400" },
-    { label: "Error Rate", value: `${data.errorRate}%`, icon: AlertTriangle, color: "text-amber-400" },
-  ];
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (<Skeleton key={i} className="h-28" />))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">AI Monitor</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Monitor AI feature usage and performance
-        </p>
+        <p className="text-sm text-gray-400 mt-1">Real-time AI usage and performance</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <GlassCard key={stat.label} className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5">
-                  <Icon className={`h-5 w-5 ${stat.color}`} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                  <p className="text-xl font-bold text-white">{stat.value}</p>
-                </div>
-              </div>
-            </GlassCard>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2 p-6">
-          <h3 className="text-sm font-medium text-gray-300 mb-4">AI Usage (30 Days)</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data.usageOverTime}>
-                <defs>
-                  <linearGradient id="aiUsage" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: "rgba(17,24,39,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#f1f5f9" }} />
-                <Area type="monotone" dataKey="requests" stroke="#8b5cf6" strokeWidth={2} fill="url(#aiUsage)" />
-              </AreaChart>
-            </ResponsiveContainer>
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase">Total Requests</p>
+              <p className="mt-1.5 text-2xl font-bold text-gray-100">{data.totalRequests.toLocaleString()}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{data.totalTokens.toLocaleString()} tokens</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400">
+              <Brain className="h-5 w-5" />
+            </div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
-          <h3 className="text-sm font-medium text-gray-300 mb-4">Endpoint Usage</h3>
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase">Active Users</p>
+              <p className="mt-1.5 text-2xl font-bold text-gray-100">{data.activeUsers}</p>
+              <p className="mt-0.5 text-xs text-gray-500">last 30 days</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
+              <Activity className="h-5 w-5" />
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase">Avg Response</p>
+              <p className="mt-1.5 text-2xl font-bold text-gray-100">{data.avgResponseTime}s</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
+              <Zap className="h-5 w-5" />
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase">Error Rate</p>
+              <p className="mt-1.5 text-2xl font-bold text-gray-100">{data.errorRate}%</p>
+            </div>
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${data.errorRate > 5 ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-400"}`}>
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+
+      <GlassCard className="p-5">
+        <h3 className="text-sm font-semibold text-gray-200 mb-4">Usage (30 days)</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data.usageOverTime}>
+              <defs>
+                <linearGradient id="aiGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "rgba(17,24,39,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px" }} />
+              <Area type="monotone" dataKey="requests" stroke="#8b5cf6" strokeWidth={2} fill="url(#aiGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </GlassCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GlassCard className="p-5">
+          <h3 className="text-sm font-semibold text-gray-200 mb-4">Endpoints</h3>
           <div className="space-y-3">
             {data.endpoints.map((ep) => (
-              <div key={ep.name} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03]">
-                <div>
-                  <p className="text-sm text-gray-200">{ep.name}</p>
-                  <p className="text-xs text-gray-500">{ep.avgTokens} avg tokens</p>
+              <div key={ep.name} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-200">{ep.name}</span>
                 </div>
-                <span className="text-sm font-medium text-white">{ep.count.toLocaleString()}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-gray-500">{ep.count} calls</span>
+                  <Badge variant="default" size="sm">~{ep.avgTokens} tokens</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h3 className="text-sm font-semibold text-gray-200 mb-4">Recent Activity</h3>
+          <div className="space-y-2">
+            {data.recentActivity.slice(0, 10).map((a, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 font-mono">{a.userId}...</span>
+                  <Badge variant="info" size="sm">{a.type}</Badge>
+                </div>
+                <span className="text-xs text-gray-500">{a.time}</span>
               </div>
             ))}
           </div>
         </GlassCard>
       </div>
-
-      <GlassCard className="p-6">
-        <h3 className="text-sm font-medium text-gray-300 mb-4">Recent Activity</h3>
-        <div className="divide-y divide-white/10">
-          {data.recentActivity.map((activity, i) => (
-            <div key={i} className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-3">
-                <Activity className="h-4 w-4 text-gray-500" />
-                <div>
-                  <p className="text-sm text-gray-200">
-                    <span className="font-medium">{activity.user}</span> used{" "}
-                    <Badge variant="brand" size="sm">{activity.type}</Badge>
-                  </p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
-                </div>
-              </div>
-              <span className="text-xs text-gray-500">{activity.tokens} tokens</span>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
     </div>
   );
 }

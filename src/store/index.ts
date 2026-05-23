@@ -13,7 +13,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: "light",
+      theme: "dark",
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
     }),
@@ -170,5 +170,26 @@ export const usePomodoroStore = create<PomodoroState>()(
       }),
     }),
     { name: "habitforge-pomodoro" }
+  )
+);
+
+interface OnboardingState {
+  completed: boolean;
+  currentStep: number;
+  setCompleted: () => void;
+  setCurrentStep: (step: number) => void;
+  reset: () => void;
+}
+
+export const useOnboardingStore = create<OnboardingState>()(
+  persist(
+    (set) => ({
+      completed: false,
+      currentStep: 0,
+      setCompleted: () => set({ completed: true, currentStep: 0 }),
+      setCurrentStep: (currentStep) => set({ currentStep }),
+      reset: () => set({ completed: false, currentStep: 0 }),
+    }),
+    { name: "habitforge-onboarding" }
   )
 );

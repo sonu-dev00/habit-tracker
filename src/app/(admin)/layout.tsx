@@ -13,6 +13,8 @@ import {
   TicketCheck,
   Flag,
   DollarSign,
+  History,
+  Shield,
   Sparkles,
   X,
   LogOut,
@@ -31,6 +33,8 @@ const navItems = [
   { href: "/admin/support-tickets", label: "Support Tickets", icon: TicketCheck },
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/revenue", label: "Revenue", icon: DollarSign },
+  { href: "/admin/audit-log", label: "Audit Log", icon: History },
+  { href: "/admin/security", label: "Security", icon: Shield },
 ];
 
 export default function AdminLayout({

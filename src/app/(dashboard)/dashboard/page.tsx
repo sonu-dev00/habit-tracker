@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -27,6 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserStore, useXPStore } from "@/store";
+import { useDashboardStats } from "@/lib/hooks/use-analytics";
+import { useUser } from "@/lib/hooks/use-user";
 import { LEVELS, DAILY_CHALLENGES } from "@/lib/constants";
 import { getDailyQuote } from "@/lib/ai-client";
 import { formatDate, cn } from "@/lib/utils";
@@ -112,7 +114,7 @@ function WeeklyChart({
       <h3 className="text-sm font-semibold text-gray-200 mb-4">
         Weekly Completions
       </h3>
-      <div className="h-48">
+      <div className="h-48 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
@@ -159,20 +161,20 @@ function WeeklyChart({
   );
 }
 
-function HeatmapGrid() {
+function HeatmapGrid({ data: _data }: { data?: { date: string; count: number }[] }) {
   const today = new Date();
   const cells = useMemo(() => {
-    const days: { date: Date; completions: number }[] = [];
+    if (!_data) return [];
+    const dateMap = new Map(_data.map((d) => [d.date, d.count]));
+    const result: { date: Date; completions: number }[] = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      days.push({
-        date: d,
-        completions: Math.floor(Math.random() * 5),
-      });
+      const dStr = d.toISOString().slice(0, 10);
+      result.push({ date: d, completions: dateMap.get(dStr) ?? 0 });
     }
-    return days;
-  }, []);
+    return result;
+  }, [_data]);
 
   return (
     <GlassCard className="p-5">
@@ -187,7 +189,7 @@ function HeatmapGrid() {
               "h-5 w-5 rounded-md transition-colors",
               heatColors[getHeatIndex(cell.completions)]
             )}
-            title={`${cell.date.toLocaleDateString()}: ${cell.completions}`}
+            title={`${cell.date.getDate()}/${cell.date.getMonth() + 1}/${cell.date.getFullYear()}: ${cell.completions}`}
           />
         ))}
       </div>
@@ -239,8 +241,13 @@ function DailyChallengeCard() {
 }
 
 export default function DashboardPage() {
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const name = useUserStore((s) => s.name);
-  const { level, xp, totalXp } = useXPStore();
+  const { user, isLoading: userLoading } = useUser();
+  const { level, totalXp } = useXPStore();
+  const { data: dashboard, isLoading: dashboardLoading } = useDashboardStats();
+
+  const displayName = name ?? user?.name ?? "Forger";
 
   const today = new Date();
   const formattedDate = formatDate(today, "EEEE, MMMM d");
@@ -257,44 +264,29 @@ export default function DashboardPage() {
   );
 
   const weeklyData = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    if (!dashboard) return [];
     const dayOfWeek = today.getDay();
-    return days.map((day, i) => {
-      const diff = i - dayOfWeek;
-      const d = new Date(today);
-      d.setDate(d.getDate() + diff);
-      return {
-        day,
-        completions: Math.floor(Math.random() * 8),
-        fullDate: d.toISOString().slice(0, 10),
-      };
+    return dashboard.weeklyCompletions.map((item, i) => {
+      const dayIndex = (dayOfWeek - 6 + i + 7) % 7;
+      return { day: DAYS[dayIndex], completions: item.count };
     });
-  }, []);
+  }, [dashboard]);
 
   const stats = useMemo(
     () => ({
-      bestStreak: 12,
-      todayProgress: 67,
-      productivityScore: 82,
-      totalCompletions: 143,
+      bestStreak: dashboard?.bestStreak ?? 0,
+      todayProgress: dashboard?.weeklyCompletions?.length
+        ? Math.min(100, Math.round((dashboard.weeklyCompletions[today.getDay()]?.count ?? 0) * 20))
+        : 0,
+      productivityScore: dashboard?.productivityScore ?? 0,
+      totalCompletions: dashboard?.totalCompletions ?? 0,
     }),
-    []
+    [dashboard]
   );
 
-  const [quote, setQuote] = useState("");
-  const [quoteLoading, setQuoteLoading] = useState(true);
-  const [quoteError, setQuoteError] = useState(false);
+  const quote = getDailyQuote();
 
-  useEffect(() => {
-    try {
-      const q = getDailyQuote();
-      setQuote(q);
-    } catch {
-      setQuoteError(true);
-    } finally {
-      setQuoteLoading(false);
-    }
-  }, []);
+  const isLoading = userLoading || dashboardLoading;
 
   return (
     <motion.div
@@ -305,36 +297,19 @@ export default function DashboardPage() {
     >
       <motion.div variants={stagger.item}>
         <h1 className="text-2xl font-bold text-gray-100">
-          Welcome back, {name ?? "Forger"}
+          Welcome back, {displayName}
         </h1>
         <p className="text-sm text-gray-400 mt-0.5">{formattedDate}</p>
       </motion.div>
 
       <motion.div variants={stagger.item}>
         <GlassCard className="p-4 flex items-start gap-4" glow>
-          {quoteLoading ? (
-            <div className="flex items-center gap-3 w-full">
-              <Skeleton className="h-8 w-8 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            </div>
-          ) : quoteError ? (
-            <div className="flex items-center gap-3 text-gray-500 text-sm">
-              <Brain className="h-5 w-5 text-gray-500" />
-              <span>Daily inspiration unavailable. Keep building!</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-600/20 border border-violet-500/20">
-                <Brain className="h-4 w-4 text-violet-400" />
-              </div>
-              <p className="text-sm text-gray-300 leading-relaxed italic">
-                &ldquo;{quote}&rdquo;
-              </p>
-            </>
-          )}
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-600/20 border border-violet-500/20">
+            <Brain className="h-4 w-4 text-violet-400" />
+          </div>
+          <p className="text-sm text-gray-300 leading-relaxed italic">
+            &ldquo;{quote}&rdquo;
+          </p>
         </GlassCard>
       </motion.div>
 
@@ -406,7 +381,7 @@ export default function DashboardPage() {
           <WeeklyChart data={weeklyData} />
         </motion.div>
         <motion.div variants={stagger.item}>
-          <HeatmapGrid />
+          <HeatmapGrid data={dashboard?.heatmap} />
         </motion.div>
       </div>
 

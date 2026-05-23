@@ -7,14 +7,15 @@ import {
   Target,
   Trophy,
   Lock,
-  Unlock,
   Sparkles,
   Star,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
-import { useUserStore, useXPStore } from "@/store";
+import { useSession } from "next-auth/react";
+import { useXP } from "@/lib/hooks/use-xp";
+import { useAnalytics } from "@/lib/hooks/use-analytics";
 import { LEVELS, ACHIEVEMENTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Achievement } from "@/types";
@@ -36,7 +37,7 @@ ACHIEVEMENTS.forEach((a) => {
   achievementIcons[a.type] = a.icon;
 });
 
-function mockAchievements(): Achievement[] {
+function mockAchievements(_xp: number): Achievement[] {
   const unlockedTypes = [
     "first_habit",
     "seven_day_streak",
@@ -155,8 +156,15 @@ function StatsRow({
 }
 
 export default function ProfilePage() {
-  const { name, email, image } = useUserStore();
-  const { level, xp, totalXp } = useXPStore();
+  const { data: session } = useSession();
+  const { data: xpData } = useXP();
+  const { data: analytics } = useAnalytics();
+  const user = session?.user;
+  const name = user?.name ?? null;
+  const email = user?.email ?? null;
+  const image = user?.image ?? null;
+  const level = xpData?.level ?? 1;
+  const totalXp = xpData?.totalXp ?? 0;
 
   const currentLevelData = LEVELS.find((l) => l.level === level) ?? LEVELS[0];
   const nextLevelData = LEVELS.find((l) => l.level === level + 1);
@@ -169,7 +177,7 @@ export default function ProfilePage() {
     Math.round((xpInLevel / xpNeeded) * 100)
   );
 
-  const achievements = useMemo(() => mockAchievements(), []);
+  const achievements = useMemo(() => mockAchievements(totalXp), [totalXp]);
   const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
 
   return (
@@ -236,13 +244,13 @@ export default function ProfilePage() {
         <StatsRow
           icon={Target}
           label="Habits"
-          value={8}
+          value={analytics?.summary.totalHabits ?? 0}
           color="bg-blue-500/15 text-blue-400"
         />
         <StatsRow
           icon={Flame}
           label="Completions"
-          value={143}
+          value={analytics?.summary.totalCompletions ?? 0}
           color="bg-orange-500/15 text-orange-400"
         />
         <StatsRow

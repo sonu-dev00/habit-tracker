@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation";
-import { sendWelcomeEmail } from "@/lib/email";
+import { sendWelcomeEmail, sendVerificationEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -41,15 +42,31 @@ export async function POST(request: Request) {
       },
     });
 
-    await sendWelcomeEmail(email, name).catch(() => {
-      console.error(`Failed to send welcome email to ${email}`);
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const verifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
+
+    await prisma.verificationToken.create({
+      data: {
+        identifier: email,
+        token: verifyTokenHash,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
     });
+
+    await Promise.all([
+      sendWelcomeEmail(email, name).catch(() => {
+        console.error(`Failed to send welcome email to ${email}`);
+      }),
+      sendVerificationEmail(email, name, verifyToken).catch(() => {
+        console.error(`Failed to send verification email to ${email}`);
+      }),
+    ]);
 
     return NextResponse.json(
       {
         success: true,
         message:
-          "Account created successfully. Please sign in with your credentials.",
+          "Account created successfully. Please check your email to verify your account.",
         user: { id: user.id, name: user.name, email: user.email },
       },
       { status: 201 }

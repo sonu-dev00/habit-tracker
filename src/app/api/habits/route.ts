@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createHabitSchema } from "@/lib/validation";
+import { sanitizeObject } from "@/lib/sanitize";
 import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -107,7 +108,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const parsed = createHabitSchema.safeParse(body);
+    const sanitized = sanitizeObject(body, ["name", "description"]);
+    const parsed = createHabitSchema.safeParse(sanitized);
 
     if (!parsed.success) {
       return NextResponse.json(

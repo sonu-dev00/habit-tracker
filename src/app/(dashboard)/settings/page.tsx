@@ -15,6 +15,7 @@ import {
   XCircle,
   Eye,
   EyeOff,
+  Trash2,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { GlassCard } from "@/components/ui/card";
@@ -115,24 +116,26 @@ export default function SettingsPage() {
     setTimeout(() => setApiKeySaved(false), 2000);
   }, [apiKey]);
 
-  const handleExportData = useCallback(() => {
-    const data = {
-      exportedAt: new Date().toISOString(),
-      user: { name, email },
-      settings: { soundEnabled, notificationsEnabled, focusMode },
-      habits: [],
-      completions: [],
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `habitforge-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [name, email, soundEnabled, notificationsEnabled, focusMode]);
+  const handleExportData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/export");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `habitforge-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
+    }
+  }, []);
+
+  const [deleting, setDeleting] = useState(false);
 
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
@@ -140,6 +143,24 @@ export default function SettingsPage() {
     setUser({ id: "", name: null, email: null, image: null, role: null });
     window.location.href = "/";
   }, [setUser]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (!window.confirm(
+      "Are you sure you want to delete your account? This will permanently delete all your data, habits, and progress. This action cannot be undone."
+    )) return;
+
+    if (!window.confirm("This is irreversible. All your data will be lost. Confirm deletion?")) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/user/delete", { method: "POST" });
+      if (!res.ok) throw new Error("Deletion failed");
+      await signOut({ callbackUrl: "/" });
+    } catch (error) {
+      console.error("Account deletion failed:", error);
+      setDeleting(false);
+    }
+  }, []);
 
   return (
     <motion.div
@@ -284,7 +305,7 @@ export default function SettingsPage() {
           description="Irreversible actions"
           className="border-red-500/20"
         >
-          <div className="pt-3">
+          <div className="pt-3 flex flex-wrap gap-2">
             <Button
               variant="danger"
               size="md"
@@ -293,6 +314,15 @@ export default function SettingsPage() {
               onClick={handleSignOut}
             >
               Sign Out
+            </Button>
+            <Button
+              variant="danger"
+              size="md"
+              icon={Trash2}
+              loading={deleting}
+              onClick={handleDeleteAccount}
+            >
+              Delete Account
             </Button>
           </div>
         </SectionCard>

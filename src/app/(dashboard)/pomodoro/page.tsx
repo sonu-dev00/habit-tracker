@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { usePomodoroStore, useSettingsStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -37,12 +36,10 @@ function formatTime(seconds: number): string {
 function RingTimer({
   remaining,
   total,
-  isRunning,
   mode,
 }: {
   remaining: number;
   total: number;
-  isRunning: boolean;
   mode: Mode;
 }) {
   const radius = 140;
@@ -79,6 +76,7 @@ function RingTimer({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 0.5, ease: "linear" }}
         />
@@ -121,7 +119,6 @@ export default function PomodoroPage() {
     longBreakDuration,
     sessionsBeforeLongBreak,
     isRunning,
-    isBreak,
     remainingTime,
     sessionsCompleted,
     setWorkDuration,
@@ -132,7 +129,6 @@ export default function PomodoroPage() {
     setIsBreak,
     setRemainingTime,
     incrementSessionsCompleted,
-    resetPomodoro,
   } = usePomodoroStore();
 
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
@@ -141,7 +137,7 @@ export default function PomodoroPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const getTotalTime = useCallback(() => {
+  const getTotalTime = useCallback((): number => {
     switch (mode) {
       case "FOCUS":
         return workDuration * 60;
@@ -176,18 +172,18 @@ export default function PomodoroPage() {
   }, [soundEnabled]);
 
   useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        const store = usePomodoroStore.getState();
-        setRemainingTime(Math.max(0, store.remainingTime - 1));
-      }, 1000);
-    } else {
+    if (!isRunning) {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
     }
+    intervalRef.current = setInterval(() => {
+      const store = usePomodoroStore.getState();
+      setRemainingTime(Math.max(0, store.remainingTime - 1));
+    }, 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, remainingTime, setRemainingTime]);
+  }, [isRunning, setRemainingTime]);
 
   useEffect(() => {
     if (remainingTime === 0 && isRunning) {
@@ -248,8 +244,6 @@ export default function PomodoroPage() {
     setRemainingTime(workDuration * 60);
   }, [workDuration, setIsRunning, setIsBreak, setRemainingTime]);
 
-  const progress = totalTime > 0 ? (remainingTime / totalTime) * 100 : 0;
-
   return (
     <div className="space-y-6">
       <motion.div
@@ -296,7 +290,6 @@ export default function PomodoroPage() {
           <RingTimer
             remaining={remainingTime}
             total={totalTime}
-            isRunning={isRunning}
             mode={mode}
           />
 

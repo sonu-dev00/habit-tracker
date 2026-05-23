@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { useAnalytics } from "@/lib/hooks/use-analytics";
 import {
   TrendingUp,
   Flame,
@@ -93,7 +94,7 @@ function WeeklyBarChart({
       <h3 className="text-sm font-semibold text-gray-200 mb-4">
         Weekly Completions
       </h3>
-      <div className="h-56">
+      <div className="h-56 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
@@ -119,7 +120,7 @@ function WeeklyBarChart({
                 fontSize: "13px",
               }}
               labelStyle={{ color: "#e5e7eb" }}
-              itemStyle={{ color: "#60a5fa" }}
+              itemStyle={{ color: "#a78bfa" }}
             />
             <Bar
               dataKey="completions"
@@ -164,7 +165,7 @@ function MonthlyAreaChart({
       <h3 className="text-sm font-semibold text-gray-200 mb-4">
         Monthly Trend
       </h3>
-      <div className="h-56">
+      <div className="h-56 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
@@ -269,64 +270,82 @@ function CategoryBreakdown({
 }
 
 export default function AnalyticsPage() {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+
+  const { data: analytics, isLoading, error } = useAnalytics();
 
   const weeklyData = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    return days.map((day, i) => ({
-      day,
-      completions: Math.floor(Math.random() * 10) + 1,
-    }));
-  }, []);
+    if (!analytics) return [];
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    return analytics.weeklyCompletions.map((item, i) => {
+      const dayIndex = (dayOfWeek - 6 + i + 7) % 7;
+      return { day: DAYS[dayIndex], completions: item.count };
+    });
+  }, [analytics]);
 
   const monthlyData = useMemo(() => {
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return months.slice(0, today.getMonth() + 1).map((month) => ({
-      month,
-      completions: Math.floor(Math.random() * 80) + 20,
-    }));
-  }, []);
+    if (!analytics) return [];
+    return analytics.monthlyCompletions
+      .filter((_, i) => i % 5 === 0 || i === analytics.monthlyCompletions.length - 1)
+      .map((item) => ({
+        month: new Date(item.date).getDate().toString(),
+        completions: item.count,
+      }));
+  }, [analytics]);
 
   const categoryData = useMemo(() => {
-    return CATEGORIES.map((c) => ({
-      category: c.value,
-      label: c.label,
-      count: Math.floor(Math.random() * 30) + 1,
-      color: categoryColors[c.value] ?? "bg-gray-500",
+    if (!analytics) return [];
+    return analytics.categoryBreakdown.map((item) => ({
+      category: item.category,
+      label: CATEGORIES.find((c) => c.value === item.category)?.label ?? item.category,
+      count: item.count,
+      completions: item.completions,
+      color: categoryColors[item.category] ?? "bg-gray-500",
     }));
-  }, []);
+  }, [analytics]);
 
   const summaryStats = useMemo(
     () => ({
-      productivityScore: 82,
-      bestStreak: 12,
+      productivityScore: analytics?.summary.productivityScore ?? 0,
+      bestStreak: analytics?.summary.bestStreak ?? 0,
       weeklyCompletions: weeklyData.reduce((s, d) => s + d.completions, 0),
-      avgDaily: Math.round(
-        weeklyData.reduce((s, d) => s + d.completions, 0) / 7
-      ),
+      avgDaily: analytics?.summary.averagePerDay ?? 0,
     }),
-    [weeklyData]
+    [analytics, weeklyData]
   );
 
-  const completionRate = useMemo(() => {
-    const totalHabits = Math.floor(Math.random() * 5) + 10;
-    const completed = Math.floor(totalHabits * (0.5 + Math.random() * 0.4));
-    return Math.round((completed / totalHabits) * 100);
-  }, []);
+  const completionRate = analytics?.summary.completionRate ?? 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 rounded-lg bg-white/5 animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-2xl bg-white/5 animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-72 rounded-2xl bg-white/5 animate-pulse" />
+          <div className="h-72 rounded-2xl bg-white/5 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <p className="text-lg text-gray-400">Failed to load analytics</p>
+        <p className="text-sm text-gray-500 mt-1">Please try again later</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateHabitSchema } from "@/lib/validation";
+import { sanitizeObject } from "@/lib/sanitize";
 
 export async function GET(
   _request: NextRequest,
@@ -73,7 +74,8 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const parsed = updateHabitSchema.safeParse(body);
+    const sanitized = sanitizeObject(body, ["name", "description"]);
+    const parsed = updateHabitSchema.safeParse(sanitized);
 
     if (!parsed.success) {
       return NextResponse.json(

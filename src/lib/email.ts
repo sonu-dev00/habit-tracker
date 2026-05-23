@@ -152,6 +152,30 @@ export async function sendWeeklyReviewEmail(email: string, name: string, stats: 
   return sendEmail({ to: email, subject: "Your Weekly HabitForge Review", html });
 }
 
+export async function sendVerificationEmail(email: string, name: string, token: string) {
+  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #6366f1; font-size: 28px;">HabitForge</h1>
+      </div>
+      <h2>Verify your email address</h2>
+      <p>Hi ${name},</p>
+      <p>Thanks for signing up! Please verify your email address by clicking the button below:</p>
+      <div style="text-align: center; margin-top: 30px; margin-bottom: 30px;">
+        <a href="${verifyUrl}" style="background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Verify Email</a>
+      </div>
+      <p>This link expires in 7 days.</p>
+      <p style="color: #6b7280; font-size: 14px;">If you didn't create an account, please ignore this email.</p>
+    </body>
+    </html>
+  `;
+  return sendEmail({ to: email, subject: "Verify your HabitForge email", html });
+}
+
 export async function sendAccountDeletionEmail(email: string, name: string) {
   const html = `
     <!DOCTYPE html>

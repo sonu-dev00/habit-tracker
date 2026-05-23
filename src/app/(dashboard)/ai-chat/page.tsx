@@ -216,18 +216,16 @@ export default function AIChatPage() {
 
         addMessage("assistant", response);
       } catch (err: any) {
-        if (err?.message?.includes("401") || err?.message?.includes("API key")) {
+        if (err?.message?.includes("API key") || err?.message?.includes("401")) {
           setApiKeyConfigured(false);
-          addMessage(
-            "assistant",
-            "I can't respond right now because the OpenAI API key isn't configured. Please add your API key in Settings to enable AI features."
-          );
-        } else {
-          addMessage(
-            "assistant",
-            "Sorry, I encountered an error. Please try again or check your connection."
-          );
         }
+        const isAuthError = err?.message?.includes("401") || err?.message?.includes("API key") || err?.status === 401;
+        addMessage(
+          "assistant",
+          isAuthError
+            ? "I can't respond right now because the OpenAI API key isn't configured. Please add your API key in Settings to enable AI features."
+            : "Sorry, I encountered an error. Please try again or check your connection."
+        );
       } finally {
         setIsLoading(false);
       }

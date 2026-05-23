@@ -13,12 +13,18 @@ import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   title: string;
   description?: string;
   type?: ToastType;
   duration?: number;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -98,6 +104,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     <ToastPrimitive.Description className="mt-1 text-xs text-gray-400">
                       {toast.description}
                     </ToastPrimitive.Description>
+                  )}
+                  {toast.action && (
+                    <button
+                      onClick={() => {
+                        toast.action!.onClick();
+                        removeToast(toast.id);
+                      }}
+                      className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      {toast.action.label}
+                    </button>
                   )}
                 </div>
                 <ToastPrimitive.Close className="flex-shrink-0 rounded-lg p-1 text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors">

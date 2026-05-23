@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
+import { AppError } from "@/lib/api-error";
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -248,7 +249,10 @@ export async function getProducts() {
 }
 
 export function constructWebhookEvent(payload: string, signature: string): Stripe.Event {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    throw new AppError("STRIPE_WEBHOOK_SECRET is not configured", 500, "WEBHOOK_CONFIG_ERROR");
+  }
   return getStripe().webhooks.constructEvent(payload, signature, webhookSecret);
 }
 

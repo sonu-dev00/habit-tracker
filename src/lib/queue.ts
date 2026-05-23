@@ -1,117 +1,56 @@
-type QueueHandler<T = any> = (job: T) => Promise<void>;
+import { Queue as BullQueue, Worker, Job } from "bullmq";
 
-interface QueueJob<T = any> {
-  id: string;
-  type: string;
-  data: T;
-  createdAt: Date;
-}
+const connection = {
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+};
 
-interface EmailJobData {
-  type: "welcome" | "password_reset" | "subscription" | "weekly_review" | "deletion";
-  to: string;
-  name?: string;
-  plan?: string;
-  token?: string;
-  stats?: {
-    completions: number;
-    streak: number;
-    totalHabits: number;
-    xpEarned: number;
-    level: number;
-  };
-}
+const QUEUE_NAMES = ["email", "analytics", "ai", "cleanup"] as const;
+type QueueName = typeof QUEUE_NAMES[number];
 
-interface AnalyticsJobData {
-  event: string;
-  userId: string;
-  properties?: Record<string, unknown>;
-  timestamp: Date;
-}
+const queues = new Map<QueueName, BullQueue>();
 
-interface AIJobData {
-  type: "coaching" | "analysis" | "suggestion";
-  userId: string;
-  payload: Record<string, unknown>;
-}
-
-interface CleanupJobData {
-  target: "sessions" | "audit_logs" | "temp_data" | "notifications";
-  olderThanDays: number;
-}
-
-class Queue<T = any> {
-  private name: string;
-  private handlers: Map<string, QueueHandler<T>> = new Map();
-  private jobs: QueueJob<T>[] = [];
-  private processing = false;
-
-  constructor(name: string) {
-    this.name = name;
+function getQueue(name: QueueName): BullQueue {
+  if (!queues.has(name)) {
+    queues.set(name, new BullQueue(name, { connection }));
   }
+  return queues.get(name)!;
+}
 
-  process(type: string, handler: QueueHandler<T>): void {
-    this.handlers.set(type, handler);
-  }
+export async function addJob(queue: string, type: string, data: Record<string, unknown>): Promise<string> {
+  const q = getQueue(queue as QueueName);
+  const job = await q.add(type, data);
+  return job.id ?? "";
+}
 
-  async add(type: string, data: T): Promise<string> {
-    const id = `${this.name}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    this.jobs.push({ id, type, data, createdAt: new Date() });
-    if (!this.processing) {
-      this.processing = true;
-      setImmediate(() => this.processQueue());
-    }
-    return id;
-  }
+type EmailJobData = { type: string; to: string; name?: string; plan?: string; token?: string; stats?: Record<string, unknown> };
+type AnalyticsJobData = { event: string; userId: string; properties?: Record<string, unknown>; timestamp: Date };
+type AIJobData = { type: string; userId: string; payload: Record<string, unknown> };
+type CleanupJobData = { target: string; olderThanDays: number };
 
-  private async processQueue(): Promise<void> {
-    while (this.jobs.length > 0) {
-      const job = this.jobs.shift()!;
-      const handler = this.handlers.get(job.type);
-      if (handler) {
-        try {
+const handlers = new Map<string, Map<string, (data: any) => Promise<void>>>();
+
+export function registerHandler(queue: QueueName, type: string, handler: (data: any) => Promise<void>): void {
+  if (!handlers.has(queue)) handlers.set(queue, new Map());
+  handlers.get(queue)!.set(type, handler);
+}
+
+export function startWorkers(): void {
+  for (const name of QUEUE_NAMES) {
+    const typeHandlers = handlers.get(name);
+    if (!typeHandlers || typeHandlers.size === 0) continue;
+
+    new Worker(
+      name,
+      async (job: Job) => {
+        const handler = typeHandlers.get(job.name);
+        if (handler) {
           await handler(job.data);
-        } catch (error) {
-          console.error(`[Queue:${this.name}] Job ${job.id} failed:`, error);
         }
-      }
-    }
-    this.processing = false;
-  }
-
-  get length(): number {
-    return this.jobs.length;
+      },
+      { connection },
+    );
   }
 }
 
-export const emailQueue = new Queue<EmailJobData>("email");
-export const analyticsQueue = new Queue<AnalyticsJobData>("analytics");
-export const aiQueue = new Queue<AIJobData>("ai");
-export const cleanupQueue = new Queue<CleanupJobData>("cleanup");
-
-export async function addJob(
-  queue: string,
-  type: string,
-  data: Record<string, unknown>,
-): Promise<string> {
-  const queues: Record<string, Queue<any>> = {
-    email: emailQueue,
-    analytics: analyticsQueue,
-    ai: aiQueue,
-    cleanup: cleanupQueue,
-  };
-
-  const q = queues[queue];
-  if (!q) {
-    throw new Error(`Unknown queue: ${queue}`);
-  }
-
-  return q.add(type, data);
-}
-
-export async function processJobs(): Promise<void> {
-  const queues = [emailQueue, analyticsQueue, aiQueue, cleanupQueue];
-  await Promise.all(queues.map((q) => q.length));
-}
-
-export type { QueueJob, EmailJobData, AnalyticsJobData, AIJobData, CleanupJobData };
+export { getQueue };
+export type { QueueName, EmailJobData, AnalyticsJobData, AIJobData, CleanupJobData };

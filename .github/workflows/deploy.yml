@@ -13,10 +13,11 @@ env:
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
-  vercel:
-    name: Deploy to Vercel
+  migrate:
+    name: Run Database Migrations
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +25,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
       - run: npm ci
+      - run: npx prisma generate
+      - name: Run Migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: [migrate]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - run: npx prisma generate
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel Environment
@@ -32,6 +53,32 @@ jobs:
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy to Vercel
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  post-deploy:
+    name: Post-Deploy Checks
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: [vercel]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Health Check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://www.habitforge.com/api/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "⏳ Health check: HTTP $STATUS (attempt $i/6)"
+            sleep 10
+          done
+          echo "❌ Health check failed after 6 attempts"
+          exit 1
+
+      - name: Security Headers Check
+        run: |
+          CHECK_URL="https://www.habitforge.com" npx tsx scripts/security-check.ts || true
 
   ecs:
     name: Deploy to AWS ECS

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -10,27 +10,29 @@ import {
   Edit3,
   Trash2,
   ListFilter,
-  ArrowUpDown,
   AlertTriangle,
-  GripVertical,
-  Search,
+  RotateCcw,
+  Archive,
+  Loader2,
 } from "lucide-react";
-import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useXPStore } from "@/store";
+import { useToast } from "@/components/ui/toast";
+import { ShareButton } from "@/components/ui/share-button";
 import {
   CATEGORIES,
   PRIORITIES,
   FREQUENCIES,
 } from "@/lib/constants";
 import { cn, randomId } from "@/lib/utils";
+import { useHabits, useCreateHabit, useDeleteHabit, useToggleComplete, useArchiveHabits, useDeleteHabits } from "@/lib/hooks/use-habits";
 import type {
-  Habit,
   HabitCategory,
   HabitPriority,
   HabitFrequency,
@@ -67,13 +69,6 @@ const categoryColors: Record<HabitCategory, string> = {
   OTHER: "bg-gray-500/15 text-gray-400 border-gray-500/20",
 };
 
-const priorityXP: Record<HabitPriority, [number, number]> = {
-  ESSENTIAL: [10, 15],
-  IMPORTANT: [8, 12],
-  NORMAL: [5, 8],
-  BONUS: [3, 5],
-};
-
 function getPriorityColor(priority: HabitPriority): string {
   const p = PRIORITIES.find((pr) => pr.value === priority);
   return p?.color ?? "text-gray-400";
@@ -87,93 +82,24 @@ function getCategoryEmoji(category: HabitCategory): string {
   return CATEGORIES.find((c) => c.value === category)?.emoji ?? "📌";
 }
 
-function generateMockHabits(): HabitWithCompletions[] {
-  const names = [
-    "Morning Meditation",
-    "Read 30 Minutes",
-    "Exercise",
-    "Drink 8 Glasses of Water",
-    "Write in Journal",
-    "Practice Piano",
-    "Study Spanish",
-    "Code for 1 Hour",
-    "Stretch",
-    "Plan Tomorrow",
-  ];
-  const categories: HabitCategory[] = [
-    "MIND",
-    "LEARNING",
-    "FITNESS",
-    "HEALTH",
-    "CREATIVE",
-    "CREATIVE",
-    "LEARNING",
-    "WORK",
-    "FITNESS",
-    "WORK",
-  ];
-  const priorities: HabitPriority[] = [
-    "ESSENTIAL",
-    "IMPORTANT",
-    "ESSENTIAL",
-    "NORMAL",
-    "NORMAL",
-    "BONUS",
-    "IMPORTANT",
-    "IMPORTANT",
-    "NORMAL",
-    "NORMAL",
-  ];
-  return names.map((name, i) => {
-    const priority = priorities[i];
-    const [min, max] = priorityXP[priority];
-    const xpReward = Math.floor(Math.random() * (max - min + 1)) + min;
-    const now = new Date();
-    const createdAt = new Date(now);
-    createdAt.setDate(createdAt.getDate() - Math.floor(Math.random() * 30));
-    const streak = Math.floor(Math.random() * 14);
-    return {
-      id: randomId(),
-      userId: "user-1",
-      name,
-      description: null,
-      category: categories[i],
-      priority,
-      frequency: "DAILY" as HabitFrequency,
-      xpReward,
-      timeToComplete: Math.floor(Math.random() * 30) + 5,
-      reminderTime: null,
-      isPinned: i < 2,
-      isArchived: false,
-      createdAt,
-      updatedAt: now,
-      completions: [],
-      userHabitData: {
-        id: randomId(),
-        userId: "user-1",
-        streak,
-        bestStreak: streak + Math.floor(Math.random() * 5),
-        totalCompletions: streak * 3 + Math.floor(Math.random() * 10),
-        xp: streak * xpReward,
-        lastCompletionDate: streak > 0 ? now : null,
-      },
-    };
-  });
-}
-
-const todayStr = new Date().toISOString().slice(0, 10);
-
 function HabitItem({
   habit,
+  selected,
+  onSelect,
   onToggle,
   onEdit,
   onDelete,
+  onReset,
 }: {
   habit: HabitWithCompletions;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
   onToggle: (id: string) => void;
   onEdit: (habit: HabitWithCompletions) => void;
   onDelete: (id: string) => void;
+  onReset: (id: string) => void;
 }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const completedToday = habit.completions.some(
     (c) => c.date.toString().slice(0, 10) === todayStr
   );
@@ -188,9 +114,18 @@ function HabitItem({
       className={cn(
         "group flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 transition-all duration-200",
         "hover:border-white/20 hover:bg-white/[0.07]",
-        completedToday && "border-emerald-500/20 bg-emerald-500/5"
+        completedToday && "border-emerald-500/20 bg-emerald-500/5",
+        selected && "border-blue-500/40 bg-blue-500/10"
       )}
     >
+      {onSelect && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(habit.id)}
+          className="shrink-0 h-4 w-4 rounded border-gray-600 bg-white/10 text-blue-500 focus:ring-blue-500"
+        />
+      )}
       <button
         onClick={() => onToggle(habit.id)}
         className="shrink-0 focus:outline-none"
@@ -248,11 +183,18 @@ function HabitItem({
       </div>
 
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <ShareButton habitId={habit.id} />
         <button
           onClick={() => onEdit(habit)}
           className="rounded-lg p-1.5 text-gray-500 hover:text-gray-200 hover:bg-white/5 transition-colors"
         >
           <Edit3 className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => onReset(habit.id)}
+          className="rounded-lg p-1.5 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+        >
+          <RotateCcw className="h-4 w-4" />
         </button>
         <button
           onClick={() => onDelete(habit.id)}
@@ -317,7 +259,7 @@ function AddHabitModal({
             setError("");
           }}
           error={error}
-          icon={Search}
+          icon={Plus}
         />
 
         <div>
@@ -407,6 +349,51 @@ function AddHabitModal({
   );
 }
 
+function ConfirmResetModal({
+  open,
+  habitName,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  habitName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Reset Habit"
+      description="This will clear all progress and start fresh."
+      size="sm"
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+          <RotateCcw className="h-5 w-5 text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm text-amber-300">
+              Reset &ldquo;{habitName}&rdquo;?
+            </p>
+            <p className="text-xs text-amber-400/70 mt-1">
+              Streak, completions, and XP for this habit will be cleared. The
+              habit itself will be kept.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={onConfirm}>
+            Reset Progress
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function ConfirmDeleteModal({
   open,
   habitName,
@@ -450,16 +437,61 @@ function ConfirmDeleteModal({
 export default function HabitsPage() {
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const [sort, setSort] = useState<SortKey>("NEWEST");
-  const [habits, setHabits] = useState<HabitWithCompletions[]>(
-    generateMockHabits
-  );
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [resetId, setResetId] = useState<string | null>(null);
   const [editingHabit, setEditingHabit] =
     useState<HabitWithCompletions | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const addXp = useXPStore((s) => s.addXp);
+  const { toast } = useToast();
+
+  const { data: habitsData, isLoading } = useHabits();
+  const createHabit = useCreateHabit();
+  const deleteHabitMut = useDeleteHabit();
+  const toggleComplete = useToggleComplete();
+  const archiveHabitsMut = useArchiveHabits();
+  const deleteHabitsMut = useDeleteHabits();
+
+  const habits = useMemo(() => {
+    if (!habitsData) return [];
+    return habitsData.map((h) => ({
+      id: h.id,
+      userId: "",
+      name: h.name,
+      description: h.description,
+      category: h.category as HabitCategory,
+      priority: h.priority as HabitPriority,
+      frequency: h.frequency as HabitFrequency,
+      xpReward: h.xpReward,
+      timeToComplete: h.timeToComplete ?? 0,
+      reminderTime: h.reminderTime,
+      isPinned: h.isPinned,
+      isArchived: h.isArchived,
+      createdAt: new Date(h.createdAt),
+      updatedAt: new Date(h.createdAt),
+      completions: h.completions.map((c) => ({
+        id: "",
+        habitId: h.id,
+        userId: "",
+        date: new Date(c.date),
+        completedAt: new Date(c.completedAt),
+        notes: c.notes ?? null,
+      })),
+      userHabitData: {
+        id: "",
+        userId: "",
+        streak: h.streak,
+        bestStreak: h.bestStreak,
+        totalCompletions: h.totalCompletions,
+        xp: 0,
+        lastCompletionDate: null,
+      },
+    }));
+  }, [habitsData]);
 
   const deleteHabit = habits.find((h) => h.id === deleteId);
+  const resetHabit = habits.find((h) => h.id === resetId);
 
   const filteredAndSorted = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -525,51 +557,23 @@ export default function HabitsPage() {
 
   const handleToggle = useCallback(
     (id: string) => {
-      setHabits((prev) =>
-        prev.map((h) => {
-          if (h.id !== id) return h;
-          const todayStr = new Date().toISOString().slice(0, 10);
-          const alreadyCompleted = h.completions.some(
-            (c) => c.date.toString().slice(0, 10) === todayStr
-          );
-          if (alreadyCompleted) return h;
+      const habit = habits.find((h) => h.id === id);
+      if (!habit) return;
 
-          const xpAmount =
-            Math.floor(Math.random() * 11) + 5 +
-            (h.priority === "ESSENTIAL"
-              ? 10
-              : h.priority === "IMPORTANT"
-                ? 5
-                : 0);
-
-          addXp(xpAmount);
-
-          return {
-            ...h,
-            completions: [
-              ...h.completions,
-              {
-                id: randomId(),
-                habitId: h.id,
-                userId: h.userId,
-                date: new Date(),
-                completedAt: new Date(),
-                notes: null,
-              },
-            ],
-            userHabitData: h.userHabitData
-              ? {
-                  ...h.userHabitData,
-                  streak: (h.userHabitData.streak ?? 0) + 1,
-                  totalCompletions: (h.userHabitData.totalCompletions ?? 0) + 1,
-                  xp: (h.userHabitData.xp ?? 0) + xpAmount,
-                }
-              : undefined,
-          };
-        })
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const alreadyCompleted = habit.completions.some(
+        (c) => c.date.toString().slice(0, 10) === todayStr
       );
+
+      if (alreadyCompleted) {
+        toggleComplete.mutate({ habitId: id, completed: true });
+      } else {
+        const xpAmount = habit.xpReward + (habit.priority === "ESSENTIAL" ? 10 : habit.priority === "IMPORTANT" ? 5 : 0);
+        toggleComplete.mutate({ habitId: id, completed: false });
+        addXp(xpAmount);
+      }
     },
-    [addXp]
+    [habits, addXp, toggleComplete]
   );
 
   const handleAdd = useCallback(
@@ -579,37 +583,84 @@ export default function HabitsPage() {
       priority: HabitPriority;
       frequency: HabitFrequency;
     }) => {
-      const [min, max] = priorityXP[data.priority];
-      const xpReward = Math.floor((min + max) / 2);
-      const newHabit: HabitWithCompletions = {
-        id: randomId(),
-        userId: "user-1",
-        name: data.name,
-        description: null,
-        category: data.category,
-        priority: data.priority,
-        frequency: data.frequency,
-        xpReward,
-        timeToComplete: 15,
-        reminderTime: null,
-        isPinned: false,
-        isArchived: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        completions: [],
-      };
-      setHabits((prev) => [newHabit, ...prev]);
+      createHabit.mutate(data);
     },
-    []
+    [createHabit]
   );
+
+  const handleReset = useCallback(() => {
+    if (!resetId) return;
+    setResetId(null);
+  }, [resetId]);
 
   const handleDelete = useCallback(() => {
     if (!deleteId) return;
-    setHabits((prev) => prev.filter((h) => h.id !== deleteId));
+    const deletedHabit = habits.find((h) => h.id === deleteId);
+    deleteHabitMut.mutate(deleteId, {
+      onSuccess: () => {
+        toast({
+          title: "Habit deleted",
+          description: `"${deletedHabit?.name ?? "Unknown"}" has been removed`,
+          type: "success",
+          duration: 8000,
+          action: {
+            label: "Undo",
+            onClick: () => createHabit.mutate({ name: deletedHabit?.name ?? "" }),
+          },
+        });
+      },
+    });
     setDeleteId(null);
-  }, [deleteId]);
+  }, [deleteId, deleteHabitMut, habits, toast, createHabit]);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(filteredAndSorted.map((h) => h.id)));
+  }, [filteredAndSorted]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleBatchArchive = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    archiveHabitsMut.mutate(ids, {
+      onSuccess: () => {
+        toast({ title: `${ids.length} habits archived`, type: "success" });
+        clearSelection();
+      },
+    });
+  }, [selectedIds, archiveHabitsMut, toast]);
+
+  const handleBatchDelete = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    deleteHabitsMut.mutate(ids, {
+      onSuccess: () => {
+        toast({ title: `${ids.length} habits deleted`, type: "success" });
+        clearSelection();
+      },
+    });
+  }, [selectedIds, deleteHabitsMut, toast]);
 
   const activeCount = habits.filter((h) => !h.isArchived).length;
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "n" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setAddModalOpen(true);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -651,38 +702,81 @@ export default function HabitsPage() {
         </div>
       </div>
 
-      <AnimatePresence mode="popLayout">
-        {filteredAndSorted.length === 0 ? (
-          <motion.div
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <EmptyState
-              icon={ListFilter}
-              title="No habits found"
-              description={
-                filter === "ARCHIVED"
-                  ? "No archived habits yet."
-                  : "Create your first habit to start tracking!"
-              }
-            />
-          </motion.div>
-        ) : (
-          <div className="space-y-2">
-            {filteredAndSorted.map((habit) => (
-              <HabitItem
-                key={habit.id}
-                habit={habit}
-                onToggle={handleToggle}
-                onEdit={(h) => setEditingHabit(h)}
-                onDelete={(id) => setDeleteId(id)}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+              <Skeleton className="h-6 w-6 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <AnimatePresence mode="popLayout">
+          {filteredAndSorted.length === 0 ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <EmptyState
+                icon={ListFilter}
+                title="No habits found"
+                description={
+                  filter === "ARCHIVED"
+                    ? "No archived habits yet."
+                    : "Create your first habit to start tracking!"
+                }
               />
-            ))}
-          </div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          ) : (
+            <>
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-sm">
+                  <span className="text-gray-300">{selectedIds.size} selected</span>
+                  <button onClick={selectAll} className="text-xs text-blue-400 hover:text-blue-300 ml-2">
+                    Select all
+                  </button>
+                  <button onClick={clearSelection} className="text-xs text-gray-400 hover:text-gray-300">
+                    Clear
+                  </button>
+                  <div className="flex-1" />
+                  <button
+                    onClick={handleBatchArchive}
+                    className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+                  >
+                    <Archive className="h-3 w-3" /> Archive
+                  </button>
+                  <button
+                    onClick={handleBatchDelete}
+                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </button>
+                </div>
+              )}
+              <div className="space-y-2">
+                {filteredAndSorted.map((habit) => (
+                  <HabitItem
+                    key={habit.id}
+                    habit={habit}
+                    selected={selectedIds.has(habit.id)}
+                    onSelect={toggleSelected}
+                    onToggle={handleToggle}
+                    onEdit={(h) => setEditingHabit(h)}
+                    onDelete={(id) => setDeleteId(id)}
+                    onReset={(id) => setResetId(id)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </AnimatePresence>
+      )}
 
       {addModalOpen && (
         <AddHabitModal
@@ -691,6 +785,13 @@ export default function HabitsPage() {
           onSave={handleAdd}
         />
       )}
+
+      <ConfirmResetModal
+        open={!!resetId}
+        habitName={resetHabit?.name ?? ""}
+        onClose={() => setResetId(null)}
+        onConfirm={handleReset}
+      />
 
       <ConfirmDeleteModal
         open={!!deleteId}

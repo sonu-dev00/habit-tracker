@@ -1,5 +1,8 @@
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const FALLBACK_MODEL = "gpt-4o-mini";
+const PRIMARY_MODEL = "gpt-4o-mini";
+
 const DAILY_QUOTES = [
   "The secret of getting ahead is getting started. — Mark Twain",
   "Success is the sum of small efforts, repeated day in and day out. — Robert Collier",
@@ -33,7 +36,7 @@ async function callOpenAI(messages: ChatMessage[], maxTokens: number = 500): Pro
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: PRIMARY_MODEL,
       messages,
       max_tokens: maxTokens,
       temperature: 0.7,
@@ -42,12 +45,62 @@ async function callOpenAI(messages: ChatMessage[], maxTokens: number = 500): Pro
 
   if (!response.ok) {
     const error = await response.text();
+    if (response.status === 429) {
+      return await callOpenAIFallback(messages, maxTokens);
+    }
     throw new Error(`OpenAI API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
   return data.choices[0]?.message?.content || "";
 }
+
+async function callOpenAIFallback(messages: ChatMessage[], maxTokens: number): Promise<string> {
+  if (FALLBACK_MODEL === PRIMARY_MODEL) {
+    return "AI service is currently busy. Please try again in a few minutes.";
+  }
+
+  try {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: FALLBACK_MODEL,
+        messages,
+        max_tokens: Math.min(maxTokens, 300),
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      return "AI service is currently busy. Please try again in a few minutes.";
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "";
+  } catch {
+    return "AI service is currently busy. Please try again in a few minutes.";
+  }
+}
+
+function compressMessages(messages: ChatMessage[]): ChatMessage[] {
+  const SYSTEM_BUDGET = 500;
+  const USER_BUDGET = 300;
+  const ASSISTANT_BUDGET = 300;
+
+  return messages.map((m) => {
+    const budget = m.role === "system" ? SYSTEM_BUDGET : m.role === "user" ? USER_BUDGET : ASSISTANT_BUDGET;
+    if (m.content.length > budget) {
+      return { ...m, content: m.content.slice(0, budget) + "..." };
+    }
+    return m;
+  });
+}
+
+import { moderateInput } from "@/lib/ai-moderation";
 
 export async function getMotivation(userId: string, habits: { name: string; streak?: number }[]): Promise<string> {
   const prisma = await getDb();
@@ -67,7 +120,14 @@ export async function getMotivation(userId: string, habits: { name: string; stre
     },
   ];
 
-  return callOpenAI(messages);
+  const compressed = compressMessages(messages);
+  const { getCachedResponse, setCachedResponse } = await import("@/lib/ai-cache");
+  const cached = await getCachedResponse(compressed);
+  if (cached) return cached;
+
+  const response = await callOpenAI(compressed);
+  await setCachedResponse(compressed, response);
+  return response;
 }
 
 export async function getRoast(userId: string, habits: { name: string; streak?: number; completions?: number }[]): Promise<string> {
@@ -81,7 +141,15 @@ export async function getRoast(userId: string, habits: { name: string; streak?: 
       content: `My habits and progress: ${JSON.stringify(habits)}. Roast me a little to get me motivated.`,
     },
   ];
-  return callOpenAI(messages);
+
+  const compressed = compressMessages(messages);
+  const { getCachedResponse, setCachedResponse } = await import("@/lib/ai-cache");
+  const cached = await getCachedResponse(compressed);
+  if (cached) return cached;
+
+  const response = await callOpenAI(compressed);
+  await setCachedResponse(compressed, response);
+  return response;
 }
 
 export async function getWeeklyReview(
@@ -99,7 +167,15 @@ export async function getWeeklyReview(
       content: `My habits: ${JSON.stringify(habits)}. My completions this week: ${JSON.stringify(completions)}. Give me my weekly review.`,
     },
   ];
-  return callOpenAI(messages);
+
+  const compressed = compressMessages(messages);
+  const { getCachedResponse, setCachedResponse } = await import("@/lib/ai-cache");
+  const cached = await getCachedResponse(compressed);
+  if (cached) return cached;
+
+  const response = await callOpenAI(compressed);
+  await setCachedResponse(compressed, response);
+  return response;
 }
 
 export async function getSuggestion(userId: string, habits: { name: string; category?: string; frequency?: string }[]): Promise<string> {
@@ -113,7 +189,15 @@ export async function getSuggestion(userId: string, habits: { name: string; cate
       content: `My current habits: ${JSON.stringify(habits)}. What new habits should I add or how can I improve?`,
     },
   ];
-  return callOpenAI(messages);
+
+  const compressed = compressMessages(messages);
+  const { getCachedResponse, setCachedResponse } = await import("@/lib/ai-cache");
+  const cached = await getCachedResponse(compressed);
+  if (cached) return cached;
+
+  const response = await callOpenAI(compressed);
+  await setCachedResponse(compressed, response);
+  return response;
 }
 
 export async function chatWithAI(
@@ -121,6 +205,11 @@ export async function chatWithAI(
   message: string,
   context: { habits?: any[]; stats?: any }
 ): Promise<string> {
+  const moderation = moderateInput(message);
+  if (!moderation.safe) {
+    return "I can't process that request. Please keep the conversation respectful and constructive.";
+  }
+
   const prisma = await getDb();
   const memories = await prisma.aiMemory.findMany({
     where: { userId },
@@ -138,24 +227,45 @@ export async function chatWithAI(
     select: { role: true, content: true },
   });
 
+  const historySummary = previousMessages
+    .reverse()
+    .slice(-6)
+    .map((m: { role: string; content: string }) => `${m.role}: ${m.content.slice(0, 200)}`)
+    .join("\n");
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are HabitForge AI, a personal habit coaching assistant. Context: ${JSON.stringify(context)}. Memories: ${JSON.stringify(memoryMap)}. Be friendly, supportive, and practical. Keep responses concise.`,
+      content: `You are HabitForge AI, a personal habit coaching assistant. Context: ${JSON.stringify(context).slice(0, 500)}. Memories: ${JSON.stringify(memoryMap).slice(0, 300)}. Be friendly, supportive, and practical. Keep responses concise.`,
     },
-    ...previousMessages.reverse().map((m: { role: string; content: string }) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
+    ...(historySummary ? [{ role: "user" as const, content: `Recent history:\n${historySummary}` }] : []),
     { role: "user", content: message },
   ];
 
-  const response = await callOpenAI(messages);
+  const compressed = compressMessages(messages);
+  const { getCachedResponse, setCachedResponse } = await import("@/lib/ai-cache");
+  const { isCircuitOpen, recordSuccess, recordFailure } = await import("@/lib/ai-circuit-breaker");
 
-  await prisma.aiMessage.create({ data: { userId, role: "user", content: message } });
-  await prisma.aiMessage.create({ data: { userId, role: "assistant", content: response } });
+  if (isCircuitOpen("openai")) {
+    return "AI service is temporarily unavailable. Please try again later.";
+  }
 
-  return response;
+  const cached = await getCachedResponse(compressed);
+  if (cached) return cached;
+
+  try {
+    const response = await callOpenAI(compressed);
+    recordSuccess("openai");
+    await setCachedResponse(compressed, response);
+
+    await prisma.aiMessage.create({ data: { userId, role: "user", content: message } });
+    await prisma.aiMessage.create({ data: { userId, role: "assistant", content: response } });
+
+    return response;
+  } catch (error) {
+    recordFailure("openai");
+    throw error;
+  }
 }
 
 export function getDailyQuote(): string {
@@ -168,6 +278,24 @@ export async function trackUsage(userId: string, endpoint: string, tokensUsed: n
   await prisma.apiUsage.create({ data: { userId, endpoint, tokensUsed } });
 }
 
+const TIER_LIMITS: Record<string, number> = {
+  FREE: 5000,
+  PRO: 50000,
+  TEAMS: 200000,
+};
+
+export async function getUserTier(userId: string): Promise<string> {
+  const prisma = await getDb();
+  const sub = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { plan: true, status: true },
+  });
+  if (sub && (sub.plan === "PRO" || sub.plan === "TEAMS") && sub.status === "active") {
+    return sub.plan;
+  }
+  return "FREE";
+}
+
 export async function checkUsageLimit(userId: string): Promise<{
   allowed: boolean;
   used: number;
@@ -178,15 +306,30 @@ export async function checkUsageLimit(userId: string): Promise<{
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const usage = await prisma.apiUsage.findMany({
-    where: { userId, createdAt: { gte: today } },
-  });
+  const [usage, tier] = await Promise.all([
+    prisma.apiUsage.findMany({
+      where: { userId, createdAt: { gte: today } },
+    }),
+    getUserTier(userId),
+  ]);
 
   const totalTokens = usage.reduce((sum: number, u: { tokensUsed: number }) => sum + u.tokensUsed, 0);
-  const limit = 10000;
+  const limit = TIER_LIMITS[tier] || TIER_LIMITS.FREE;
   const remaining = Math.max(0, limit - totalTokens);
 
   return { allowed: remaining > 0, used: totalTokens, limit, remaining };
+}
+
+export async function cleanupOldAiMessages(): Promise<number> {
+  const prisma = await getDb();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const result = await prisma.aiMessage.deleteMany({
+    where: { createdAt: { lt: thirtyDaysAgo } },
+  });
+
+  return result.count;
 }
 
 export async function storeMemory(userId: string, key: string, value: any): Promise<void> {
