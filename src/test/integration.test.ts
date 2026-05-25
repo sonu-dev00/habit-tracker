@@ -34,8 +34,8 @@ describe("Habits API", () => {
   it("handles habit creation", async () => {
     const { auth } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/prisma");
-    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as any);
-    vi.mocked(prisma.habit.create).mockResolvedValue({ id: "h-1", name: "Test", userId: "user-1" } as any);
+    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
+    vi.mocked(prisma.habit.create).mockResolvedValue({ id: "h-1", name: "Test", userId: "user-1" } as unknown as never);
 
     const { POST } = await import("@/app/api/habits/route");
     const req = new Request("http://localhost/api/habits", {
@@ -51,7 +51,7 @@ describe("Habits API", () => {
 
   it("rejects invalid habit data", async () => {
     const { auth } = await import("@/lib/auth");
-    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as any);
+    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
 
     const { POST } = await import("@/app/api/habits/route");
     const req = new Request("http://localhost/api/habits", {
@@ -65,11 +65,11 @@ describe("Habits API", () => {
 
   it("requires auth for fetching habits", async () => {
     const { auth } = await import("@/lib/auth");
-    vi.mocked(auth).mockResolvedValue(null as any);
+    vi.mocked(auth).mockResolvedValue(null as never);
 
     const { GET } = await import("@/app/api/habits/route");
     const req = new Request("http://localhost/api/habits");
-    const res = await GET(req as any);
+    const res = await GET(req as never);
     expect(res.status).toBe(401);
   });
 });
@@ -78,8 +78,8 @@ describe("Notifications API", () => {
   it("fetches notifications for authenticated user", async () => {
     const { auth } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/prisma");
-    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as any);
-    vi.mocked(prisma.notification.findMany).mockResolvedValue([] as any);
+    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
+    vi.mocked(prisma.notification.findMany).mockResolvedValue([] as unknown as never[]);
     vi.mocked(prisma.notification.count).mockResolvedValue(0);
 
     const { GET } = await import("@/app/api/notifications/route");
@@ -92,8 +92,8 @@ describe("Notifications API", () => {
   it("marks all notifications read", async () => {
     const { auth } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/prisma");
-    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as any);
-    vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 3 } as any);
+    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
+    vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 3 } as unknown as never);
 
     const { PATCH } = await import("@/app/api/notifications/route");
     const req = new Request("http://localhost/api/notifications", {
@@ -110,7 +110,7 @@ describe("Achievements", () => {
   it("defines achievement types with thresholds", async () => {
     const { ACHIEVEMENTS } = await import("@/lib/achievements");
     expect(ACHIEVEMENTS.length).toBeGreaterThan(0);
-    ACHIEVEMENTS.forEach((a: any) => {
+    ACHIEVEMENTS.forEach((a: { id: string; threshold: number }) => {
       expect(a.id).toBeDefined();
       expect(a.threshold).toBeGreaterThan(0);
     });
@@ -120,26 +120,26 @@ describe("Achievements", () => {
     const { checkAchievements } = await import("@/lib/achievements");
     const existing = [{ id: "first-habit" }];
     const unlocked = checkAchievements({ totalCompletions: 1, bestStreak: 0, xpEarned: 0 }, existing);
-    expect(unlocked.find((a: any) => a.id === "first-habit")).toBeUndefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "first-habit")).toBeUndefined();
   });
 
   it("unlocks streak achievement at 7 days", async () => {
     const { checkAchievements } = await import("@/lib/achievements");
     const unlocked = checkAchievements({ totalCompletions: 10, bestStreak: 7, xpEarned: 100 }, []);
-    expect(unlocked.find((a: any) => a.id === "streak-7")).toBeDefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "streak-7")).toBeDefined();
   });
 
   it("unlocks XP achievement at threshold", async () => {
     const { checkAchievements } = await import("@/lib/achievements");
     const unlocked = checkAchievements({ totalCompletions: 0, bestStreak: 0, xpEarned: 5000 }, []);
-    expect(unlocked.find((a: any) => a.id === "xp-5000")).toBeDefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "xp-5000")).toBeDefined();
   });
 
   it("does not unlock achievement below threshold", async () => {
     const { checkAchievements } = await import("@/lib/achievements");
     const unlocked = checkAchievements({ totalCompletions: 2, bestStreak: 1, xpEarned: 10 }, []);
-    expect(unlocked.find((a: any) => a.id === "completions-10")).toBeUndefined();
-    expect(unlocked.find((a: any) => a.id === "streak-7")).toBeUndefined();
-    expect(unlocked.find((a: any) => a.id === "xp-1000")).toBeUndefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "completions-10")).toBeUndefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "streak-7")).toBeUndefined();
+    expect(unlocked.find((a: { id: string }) => a.id === "xp-1000")).toBeUndefined();
   });
 });

@@ -6,8 +6,6 @@ interface CircuitState {
 
 const THRESHOLD = 5;
 const RESET_TIMEOUT = 60_000;
-const HALF_OPEN_TIMEOUT = 30_000;
-
 const circuits = new Map<string, CircuitState>();
 
 function getCircuit(name: string): CircuitState {

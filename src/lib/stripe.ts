@@ -60,7 +60,7 @@ export async function createPortalSession(userId: string, returnUrl?: string): P
 }
 
 export async function handleSubscriptionChange(event: Stripe.Event) {
-  const object = event.data.object as any;
+  const object: unknown = event.data.object;
 
   if (event.type === "checkout.session.completed") {
     const session = object as Stripe.Checkout.Session;
@@ -80,17 +80,17 @@ export async function handleSubscriptionChange(event: Stripe.Event) {
         stripeSubscriptionId: subscription.id,
         stripeCustomerId: session.customer as string,
         stripePriceId: subscription.items.data[0]?.price.id,
-        stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+        stripeCurrentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
         plan,
         status: subscription.status,
-        cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
       create: {
         userId,
         stripeSubscriptionId: subscription.id,
         stripeCustomerId: session.customer as string,
         stripePriceId: subscription.items.data[0]?.price.id,
-        stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+        stripeCurrentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
         plan,
         status: subscription.status,
       },
@@ -116,7 +116,7 @@ export async function handleSubscriptionChange(event: Stripe.Event) {
       await prisma.subscription.updateMany({
         where: { stripeSubscriptionId: subscriptionId as string },
         data: {
-          stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+        stripeCurrentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
           status: subscription.status,
           plan,
         },
@@ -178,8 +178,8 @@ export async function handleSubscriptionChange(event: Stripe.Event) {
       data: {
         status: subscription.status,
         stripePriceId: subscription.items.data[0]?.price.id,
-        stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
-        cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
+        stripeCurrentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
         plan,
       },
     });
@@ -242,7 +242,7 @@ export async function getProducts() {
     id: product.id,
     name: product.name,
     description: product.description,
-    features: (product as any).features?.map((f: { name: string }) => f.name) || [],
+    features: ((product as unknown as { features: Array<{ name: string }> }).features ?? []).map((f) => f.name),
     metadata: product.metadata,
     images: product.images,
   }));

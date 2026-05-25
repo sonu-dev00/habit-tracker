@@ -15,6 +15,202 @@ export interface User {
   updatedAt: Date;
 }
 
+export type PlayerRank = "E" | "D" | "C" | "B" | "A" | "S" | "NATIONAL" | "MONARCH";
+export type StatName = "strength" | "intelligence" | "discipline" | "focus" | "endurance" | "charisma" | "wisdom" | "energy";
+export type QuestType = "DAILY" | "WEEKLY" | "MAIN" | "SIDE" | "HIDDEN" | "BOSS";
+export type QuestStatus = "ACTIVE" | "COMPLETED" | "FAILED" | "CLAIMED";
+export type DungeonType = "DEEP_WORK" | "STUDY" | "FITNESS" | "MONK_MODE" | "CUSTOM";
+export type DungeonDifficulty = "NORMAL" | "HARD" | "EXTREME" | "HELL";
+export type ItemRarity = "COMMON" | "UNCOMMON" | "RARE" | "EPIC" | "LEGENDARY" | "MYTHIC";
+export type ItemType = "COSMETIC" | "BOOSTER" | "THEME" | "AVATAR" | "SKILL_BOOK" | "TITLE" | "CONSUMABLE";
+export type GuildRole = "MEMBER" | "OFFICER" | "LEADER";
+export type SkillType = "PASSIVE" | "ACTIVE" | "ULTIMATE";
+export type BattlePassTier = "FREE" | "PREMIUM";
+
+export interface PlayerProfile {
+  id: string;
+  userId: string;
+  title: string;
+  rank: PlayerRank;
+  totalXp: number;
+  coins: number;
+  prestigeLevel: number;
+  totalQuestsDone: number;
+  dungeonsCleared: number;
+  monstersDefeated: number;
+  auraColor: string;
+}
+
+export interface PlayerStats {
+  strength: number;
+  intelligence: number;
+  discipline: number;
+  focus: number;
+  endurance: number;
+  charisma: number;
+  wisdom: number;
+  energy: number;
+}
+
+export interface Quest {
+  id: string;
+  type: QuestType;
+  title: string;
+  description: string;
+  requirements: Record<string, unknown>;
+  xpReward: number;
+  coinReward: number;
+  statRewards: Record<string, number> | null;
+  itemReward: string | null;
+  unlocksTitle: string | null;
+  isActive: boolean;
+  expiresAt: string | null;
+}
+
+export interface PlayerQuest {
+  id: string;
+  userId: string;
+  questId: string;
+  status: QuestStatus;
+  progress: number;
+  target: number;
+  claimedAt: string | null;
+  quest: Quest;
+}
+
+export interface Dungeon {
+  id: string;
+  type: DungeonType;
+  difficulty: DungeonDifficulty;
+  name: string;
+  description: string;
+  durationMin: number;
+  xpReward: number;
+  coinReward: number;
+  statReward: string | null;
+  requiredLevel: number;
+}
+
+export interface DungeonRun {
+  id: string;
+  userId: string;
+  dungeonId: string;
+  completed: boolean;
+  durationSec: number;
+  xpEarned: number;
+  coinEarned: number;
+  bossKilled: boolean;
+  startedAt: string;
+  completedAt: string | null;
+  dungeon: Dungeon;
+}
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  type: ItemType;
+  rarity: ItemRarity;
+  price: number;
+  effect: Record<string, unknown> | null;
+  isLimited: boolean;
+}
+
+export interface PlayerInventory {
+  id: string;
+  userId: string;
+  itemId: string;
+  quantity: number;
+  isEquipped: boolean;
+  acquiredAt: string;
+  item: ShopItem;
+}
+
+export interface Guild {
+  id: string;
+  name: string;
+  description: string;
+  logo: string | null;
+  level: number;
+  xp: number;
+  requiredRank: PlayerRank;
+  memberCount?: number;
+}
+
+export interface GuildMember {
+  id: string;
+  guildId: string;
+  userId: string;
+  role: GuildRole;
+  joinedAt: string;
+  user?: { name: string | null; image: string | null };
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  type: SkillType;
+  effect: Record<string, unknown>;
+  requiredLevel: number;
+  requiredRank: PlayerRank;
+  price: number;
+  icon: string;
+}
+
+export interface PlayerSkill {
+  id: string;
+  userId: string;
+  skillId: string;
+  level: number;
+  isActive: boolean;
+  skill: Skill;
+}
+
+export interface BattlePass {
+  id: string;
+  season: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  tiers: BattlePassTierDef[];
+}
+
+export interface BattlePassTierReward {
+  label: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface BattlePassTierDef {
+  id: string;
+  seasonId: string;
+  tier: number;
+  xpRequired: number;
+  freeReward: BattlePassTierReward | null;
+  premiumReward: BattlePassTierReward | null;
+}
+
+export interface PlayerBattlePass {
+  id: string;
+  userId: string;
+  battlePassId: string;
+  tier: BattlePassTier;
+  level: number;
+  xp: number;
+  claimedTiers: number[];
+}
+
+export interface PlayerDailyReward {
+  day: number;
+  claimed: boolean;
+}
+
+export interface PlayerEvolution {
+  path: string;
+  stage: number;
+}
+
 export type HabitCategory = "HEALTH" | "FITNESS" | "MIND" | "WORK" | "LEARNING" | "SOCIAL" | "FINANCE" | "CREATIVE" | "SPIRITUAL" | "OTHER";
 export type HabitPriority = "ESSENTIAL" | "IMPORTANT" | "NORMAL" | "BONUS";
 export type HabitFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
@@ -108,7 +304,7 @@ export interface DailyChallenge {
   title: string;
   description: string;
   xpReward: number;
-  requirement: Record<string, any>;
+  requirement: Record<string, unknown>;
   isActive: boolean;
 }
 

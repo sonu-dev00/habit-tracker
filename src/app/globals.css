@@ -6,7 +6,20 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-neon-green: #39ff14;
+  --color-neon-blue: #00d4ff;
+  --color-neon-purple: #bf00ff;
+  --color-neon-pink: #ff00ff;
+  --color-neon-red: #ff0044;
   --color-glass: rgba(255, 255, 255, 0.05);
+  --color-glass-heavy: rgba(255, 255, 255, 0.1);
+  --color-rank-e: #9ca3af;
+  --color-rank-d: #22c55e;
+  --color-rank-c: #3b82f6;
+  --color-rank-b: #a855f7;
+  --color-rank-a: #f59e0b;
+  --color-rank-s: #ef4444;
+  --color-rank-national: #39ff14;
+  --color-rank-monarch: #ff00ff;
 }
 
 :root {
@@ -24,12 +37,140 @@ body {
   @apply bg-gradient-to-r from-blue-400 via-purple-500 to-[#39ff14] bg-clip-text text-transparent;
 }
 
+@utility text-neon {
+  text-shadow: 0 0 7px currentColor, 0 0 10px currentColor, 0 0 21px currentColor;
+}
+
 @utility glass {
   @apply bg-white/5 backdrop-blur-xl border border-white/10;
 }
 
 @utility glass-hover {
   @apply hover:bg-white/10 hover:border-white/20 transition-all duration-200;
+}
+
+@utility rpg-panel {
+  @apply rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-xl;
+}
+
+@utility rpg-panel-glow {
+  @apply rpg-panel shadow-lg;
+}
+
+@utility glow-green {
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.3), 0 0 30px rgba(57, 255, 20, 0.1);
+}
+
+@utility glow-blue {
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3), 0 0 30px rgba(0, 212, 255, 0.1);
+}
+
+@utility glow-purple {
+  box-shadow: 0 0 15px rgba(191, 0, 255, 0.3), 0 0 30px rgba(191, 0, 255, 0.1);
+}
+
+@utility glow-red {
+  box-shadow: 0 0 15px rgba(255, 0, 68, 0.3), 0 0 30px rgba(255, 0, 68, 0.1);
+}
+
+@utility rank-badge-e {
+  @apply bg-gray-500/20 text-gray-400 border-gray-500/30;
+}
+@utility rank-badge-d {
+  @apply bg-green-500/20 text-green-400 border-green-500/30;
+}
+@utility rank-badge-c {
+  @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
+}
+@utility rank-badge-b {
+  @apply bg-purple-500/20 text-purple-400 border-purple-500/30;
+}
+@utility rank-badge-a {
+  @apply bg-amber-500/20 text-amber-400 border-amber-500/30;
+}
+@utility rank-badge-s {
+  @apply bg-red-500/20 text-red-400 border-red-500/30;
+}
+@utility rank-badge-national {
+  @apply bg-[#39ff14]/20 text-[#39ff14] border-[#39ff14]/30;
+}
+@utility rank-badge-monarch {
+  @apply bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30;
+}
+
+@utility stat-bar-strength {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+@utility stat-bar-intelligence {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+}
+@utility stat-bar-discipline {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+@utility stat-bar-focus {
+  background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+}
+@utility stat-bar-endurance {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+@utility stat-bar-charisma {
+  background: linear-gradient(90deg, #ec4899, #db2777);
+}
+@utility stat-bar-wisdom {
+  background: linear-gradient(90deg, #06b6d4, #0891b2);
+}
+@utility stat-bar-energy {
+  background: linear-gradient(90deg, #39ff14, #00cc00);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes level-up-flash {
+  0% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.7); }
+  50% { box-shadow: 0 0 50px 20px rgba(57, 255, 20, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(57, 255, 20, 0); }
+}
+
+@keyframes rank-up-cinematic {
+  0% { filter: brightness(1) blur(0); transform: scale(1); }
+  25% { filter: brightness(3) blur(2px); transform: scale(1.05); }
+  50% { filter: brightness(5) blur(4px); transform: scale(1.1); }
+  75% { filter: brightness(2) blur(1px); transform: scale(1.05); }
+  100% { filter: brightness(1) blur(0); transform: scale(1); }
+}
+
+@utility animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@utility animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@utility animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+}
+
+@utility animate-level-up {
+  animation: level-up-flash 1s ease-out;
+}
+
+@utility animate-rank-up {
+  animation: rank-up-cinematic 1.5s ease-out;
 }
 
 @layer utilities {

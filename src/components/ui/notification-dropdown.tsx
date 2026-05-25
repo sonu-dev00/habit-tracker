@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Bell, CheckCheck, X } from "lucide-react";
+import { Bell, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Notification {
@@ -36,8 +36,28 @@ export function NotificationDropdown() {
   }, []);
 
   useEffect(() => {
-    if (open) fetchNotifications();
-  }, [open, fetchNotifications]);
+    if (!open) return;
+    let cancelled = false;
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/notifications");
+        if (res.ok && !cancelled) {
+          const json = await res.json();
+          setNotifications(json.data.notifications);
+          setUnreadCount(json.data.unreadCount);
+        }
+      } catch {
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    const timer = setTimeout(() => { doFetch(); }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

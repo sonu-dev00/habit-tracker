@@ -20,16 +20,16 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    const where: Prisma.HabitWhereInput = {
+    const where: Prisma.HabitWhereInput & { category?: string; priority?: string } = {
       userId: session.user.id,
       isArchived: status === "archived" ? true : status === "active" ? false : undefined,
     };
 
-    if (category) where.category = category as any;
-    if (priority) where.priority = priority as any;
+    if (category) where.category = category;
+    if (priority) where.priority = priority;
     if (search) where.name = { contains: search, mode: "insensitive" };
 
-    const [habits, total, userData] = await Promise.all([
+    const [habits, total] = await Promise.all([
       prisma.habit.findMany({
         where,
         include: {
@@ -53,9 +53,6 @@ export async function GET(request: NextRequest) {
         skip: offset,
       }),
       prisma.habit.count({ where }),
-      prisma.userHabitData.findUnique({
-        where: { userId: session.user.id },
-      }),
     ]);
 
     const habitsWithStats = habits.map((habit) => {

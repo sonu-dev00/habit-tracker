@@ -82,11 +82,13 @@ export default function AdminAuditLogPage() {
   }, [search, page, actionFilter]);
 
   useEffect(() => {
-    fetchLogs();
+    const timer = setTimeout(() => fetchLogs(), 0);
+    return () => clearTimeout(timer);
   }, [fetchLogs]);
 
   useEffect(() => {
-    setPage(1);
+    const timer = setTimeout(() => setPage(1), 0);
+    return () => clearTimeout(timer);
   }, [search, actionFilter]);
 
   const uniqueActions = [...new Set(logs.map((l) => l.action))].sort();

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { calculateLevel } from "@/lib/rpg";
 
 export type Theme = "dark" | "light";
 export type WeekStart = "monday" | "sunday";
@@ -57,19 +58,6 @@ interface XPState {
   setXp: (xp: number) => void;
   setTotalXp: (totalXp: number) => void;
   reset: () => void;
-}
-
-function calculateLevel(totalXp: number): number {
-  if (totalXp >= 10000) return 10;
-  if (totalXp >= 7500) return 9;
-  if (totalXp >= 5000) return 8;
-  if (totalXp >= 3500) return 7;
-  if (totalXp >= 2000) return 6;
-  if (totalXp >= 1000) return 5;
-  if (totalXp >= 500) return 4;
-  if (totalXp >= 250) return 3;
-  if (totalXp >= 100) return 2;
-  return 1;
 }
 
 export const useXPStore = create<XPState>()(
@@ -192,4 +180,164 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     { name: "habitforge-onboarding" }
   )
+);
+
+interface RPGProfileState {
+  rank: string;
+  title: string;
+  coins: number;
+  prestigeLevel: number;
+  auraColor: string;
+  setProfile: (profile: Partial<RPGProfileState>) => void;
+  addCoins: (amount: number) => void;
+  spendCoins: (amount: number) => boolean;
+  setRank: (rank: string) => void;
+  setTitle: (title: string) => void;
+}
+
+export const useRPGProfileStore = create<RPGProfileState>()(
+  persist(
+    (set, get) => ({
+      rank: "E",
+      title: "The Unawakened",
+      coins: 0,
+      prestigeLevel: 0,
+      auraColor: "#39ff14",
+      setProfile: (profile) => set((s) => ({ ...s, ...profile })),
+      addCoins: (amount) => set((s) => ({ coins: s.coins + amount })),
+      spendCoins: (amount) => {
+        const state = get();
+        if (state.coins >= amount) {
+          set({ coins: state.coins - amount });
+          return true;
+        }
+        return false;
+      },
+      setRank: (rank) => set({ rank }),
+      setTitle: (title) => set({ title }),
+    }),
+    { name: "habitforge-rpg-profile" }
+  )
+);
+
+interface RPGStatsState {
+  strength: number;
+  intelligence: number;
+  discipline: number;
+  focus: number;
+  endurance: number;
+  charisma: number;
+  wisdom: number;
+  energy: number;
+  setStats: (stats: Partial<RPGStatsState>) => void;
+  addStat: (stat: keyof RPGStatsState, amount: number) => void;
+}
+
+export const useRPGStatsStore = create<RPGStatsState>()(
+  persist(
+    (set) => ({
+      strength: 1,
+      intelligence: 1,
+      discipline: 1,
+      focus: 1,
+      endurance: 1,
+      charisma: 1,
+      wisdom: 1,
+      energy: 100,
+      setStats: (stats) => set((s) => ({ ...s, ...stats })),
+      addStat: (stat, amount) => set((s) => ({ ...s, [stat]: Math.round(((s as unknown as Record<string, number>)[stat] + amount) * 10) / 10 })),
+    }),
+    { name: "habitforge-rpg-stats" }
+  )
+);
+
+let notificationCounter = 0;
+
+interface LevelUpNotification {
+  id: string;
+  type: "levelup" | "rankup" | "achievement" | "quest" | "dungeon";
+  title: string;
+  description: string;
+  icon?: string;
+  color?: string;
+}
+
+interface NotificationState {
+  notifications: LevelUpNotification[];
+  addNotification: (n: Omit<LevelUpNotification, "id">) => void;
+  clearNotifications: () => void;
+  removeNotification: (id: string) => void;
+}
+
+export const useNotificationStore = create<NotificationState>()(
+  (set) => ({
+    notifications: [],
+    addNotification: (n) => set((s) => ({
+      notifications: [...s.notifications, { ...n, id: `notif-${++notificationCounter}-${Date.now()}` }],
+    })),
+    clearNotifications: () => set({ notifications: [] }),
+    removeNotification: (id) => set((s) => ({
+      notifications: s.notifications.filter((n) => n.id !== id),
+    })),
+  })
+);
+
+interface DungeonState {
+  isRunning: boolean;
+  currentDungeon: string | null;
+  remainingTime: number;
+  totalDuration: number;
+  bossPhase: boolean;
+  bossHealth: number;
+  startDungeon: (dungeonId: string, durationMin: number) => void;
+  tick: () => void;
+  completeDungeon: () => void;
+  cancelDungeon: () => void;
+  damageBoss: (damage: number) => void;
+}
+
+export const useDungeonStore = create<DungeonState>()(
+  (set, get) => ({
+    isRunning: false,
+    currentDungeon: null,
+    remainingTime: 0,
+    totalDuration: 0,
+    bossPhase: false,
+    bossHealth: 100,
+    startDungeon: (dungeonId, durationMin) => set({
+      isRunning: true,
+      currentDungeon: dungeonId,
+      remainingTime: durationMin * 60,
+      totalDuration: durationMin * 60,
+      bossPhase: false,
+      bossHealth: 100,
+    }),
+    tick: () => {
+      const state = get();
+      if (!state.isRunning || state.remainingTime <= 0) return;
+      const newTime = state.remainingTime - 1;
+      const bossPhase = newTime <= state.totalDuration * 0.2;
+      set({
+        remainingTime: newTime,
+        bossPhase,
+      });
+    },
+    completeDungeon: () => set({
+      isRunning: false,
+      currentDungeon: null,
+      remainingTime: 0,
+      bossPhase: false,
+    }),
+    cancelDungeon: () => set({
+      isRunning: false,
+      currentDungeon: null,
+      remainingTime: 0,
+      totalDuration: 0,
+      bossPhase: false,
+      bossHealth: 100,
+    }),
+    damageBoss: (damage) => set((s) => ({
+      bossHealth: Math.max(0, s.bossHealth - damage),
+    })),
+  })
 );

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get("action") || "";
     const userId = searchParams.get("userId") || "";
 
-    const where: Record<string, any> = {};
+    const where: Record<string, unknown> = {};
 
     if (search) {
       where.OR = [

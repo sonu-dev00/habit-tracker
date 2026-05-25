@@ -12,6 +12,8 @@ import {
   Target,
   ArrowRight,
   Dumbbell,
+  Swords,
+  ScrollText,
 } from "lucide-react";
 import {
   BarChart,
@@ -26,12 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserStore, useXPStore } from "@/store";
+import { PlayerProfileHero } from "@/components/rpg/PlayerProfileHero";
+import { DailyRewardCard } from "@/components/rpg/DailyRewardCard";
 import { useDashboardStats } from "@/lib/hooks/use-analytics";
 import { useUser } from "@/lib/hooks/use-user";
-import { LEVELS, DAILY_CHALLENGES } from "@/lib/constants";
+import { useDailyReward, useClaimDailyReward } from "@/lib/hooks/use-rpg";
+import { DAILY_CHALLENGES } from "@/lib/constants";
 import { getDailyQuote } from "@/lib/ai-client";
-import { formatDate, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const stagger = {
   container: { animate: { transition: { staggerChildren: 0.07 } } },
@@ -70,7 +74,7 @@ function StatsCard({
   subtitle,
   color,
 }: {
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number;
   subtitle?: string;
@@ -242,26 +246,12 @@ function DailyChallengeCard() {
 
 export default function DashboardPage() {
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const name = useUserStore((s) => s.name);
-  const { user, isLoading: userLoading } = useUser();
-  const { level, totalXp } = useXPStore();
-  const { data: dashboard, isLoading: dashboardLoading } = useDashboardStats();
-
-  const displayName = name ?? user?.name ?? "Forger";
+  const { isLoading: userLoading } = useUser();
+  const { data: dashboard, isLoading: dashboardLoading, isError: dashboardError } = useDashboardStats();
+  const { data: dailyRewardData } = useDailyReward();
+  const claimDailyReward = useClaimDailyReward();
 
   const today = new Date();
-  const formattedDate = formatDate(today, "EEEE, MMMM d");
-
-  const currentLevelData = LEVELS.find((l) => l.level === level) ?? LEVELS[0];
-  const nextLevelData = LEVELS.find((l) => l.level === level + 1);
-  const prevLevelXp = currentLevelData.xpRequired;
-  const nextLevelXp = nextLevelData?.xpRequired ?? prevLevelXp + 1000;
-  const xpInLevel = totalXp - prevLevelXp;
-  const xpNeeded = nextLevelXp - prevLevelXp;
-  const xpProgress = Math.min(
-    100,
-    Math.round((xpInLevel / xpNeeded) * 100)
-  );
 
   const weeklyData = useMemo(() => {
     if (!dashboard) return [];
@@ -284,9 +274,25 @@ export default function DashboardPage() {
     [dashboard]
   );
 
-  const quote = getDailyQuote();
+  const quote = useMemo(() => getDailyQuote(), []);
 
-  const isLoading = userLoading || dashboardLoading;
+  const isPending = userLoading || dashboardLoading;
+
+  if (dashboardError) {
+    return (
+      <motion.div
+        variants={stagger.container}
+        initial="initial"
+        animate="animate"
+        className="space-y-6"
+      >
+        <GlassCard className="p-8 text-center">
+          <p className="text-red-400 text-lg font-semibold">Failed to load dashboard data</p>
+          <p className="text-gray-400 text-sm mt-2">Please try refreshing the page.</p>
+        </GlassCard>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -295,22 +301,49 @@ export default function DashboardPage() {
       animate="animate"
       className="space-y-6"
     >
-      <motion.div variants={stagger.item}>
-        <h1 className="text-2xl font-bold text-gray-100">
-          Welcome back, {displayName}
-        </h1>
-        <p className="text-sm text-gray-400 mt-0.5">{formattedDate}</p>
-      </motion.div>
-
-      <motion.div variants={stagger.item}>
-        <GlassCard className="p-4 flex items-start gap-4" glow>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-600/20 border border-violet-500/20">
-            <Brain className="h-4 w-4 text-violet-400" />
-          </div>
-          <p className="text-sm text-gray-300 leading-relaxed italic">
-            &ldquo;{quote}&rdquo;
-          </p>
-        </GlassCard>
+      <motion.div variants={stagger.item} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2">
+          {isPending ? (
+            <div className="rpg-panel-glow relative overflow-hidden p-6">
+              <div className="flex gap-5">
+                <Skeleton className="h-24 w-24 rounded-full" />
+                <div className="flex-1 space-y-3">
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-full max-w-md" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PlayerProfileHero streak={dailyRewardData?.currentStreak} />
+          )}
+        </div>
+        <div className="space-y-4">
+          {isPending ? (
+            <>
+              <Skeleton className="h-64 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+            </>
+          ) : (
+            <>
+              <DailyRewardCard
+                claimedDays={dailyRewardData?.claimedDays?.map(d => d.day) || []}
+                currentStreak={dailyRewardData?.currentStreak || 0}
+                canClaim={dailyRewardData?.canClaim}
+                currentDay={dailyRewardData?.currentDay}
+                onClaim={() => claimDailyReward.mutate()}
+              />
+              <GlassCard className="p-4 flex items-start gap-4" glow>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-600/20 border border-violet-500/20">
+                  <Brain className="h-4 w-4 text-violet-400" />
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed italic">
+                  &ldquo;{quote}&rdquo;
+                </p>
+              </GlassCard>
+            </>
+          )}
+        </div>
       </motion.div>
 
       <motion.div
@@ -344,38 +377,6 @@ export default function DashboardPage() {
         />
       </motion.div>
 
-      <motion.div variants={stagger.item}>
-        <GlassCard className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-sm font-semibold text-gray-200">
-                Level {level}
-              </span>
-              <span className="text-xs text-gray-500 ml-2">
-                {currentLevelData.title}
-              </span>
-            </div>
-            <span className="text-xs text-gray-500">
-              {totalXp.toLocaleString()} / {nextLevelXp.toLocaleString()} XP
-            </span>
-          </div>
-          <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
-            />
-          </div>
-          {nextLevelData && (
-            <p className="text-xs text-gray-500 mt-2">
-              {nextLevelXp - totalXp} XP to Level {level + 1} &mdash;{" "}
-              {nextLevelData.title}
-            </p>
-          )}
-        </GlassCard>
-      </motion.div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div variants={stagger.item}>
           <WeeklyChart data={weeklyData} />
@@ -407,6 +408,18 @@ export default function DashboardPage() {
         <Link href="/habits">
           <Button variant="secondary" icon={Target}>
             Manage Habits
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </Link>
+        <Link href="/quests">
+          <Button variant="secondary" icon={ScrollText}>
+            Quests
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </Link>
+        <Link href="/dungeons">
+          <Button variant="secondary" icon={Swords}>
+            Dungeons
             <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </Link>

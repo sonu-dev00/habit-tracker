@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
+import { calculateCoinsFromHabit, STAT_CATEGORY_MAP, calculateStatIncrease, calculateLevel, calculateRank, getLevelUpXpBonus } from "@/lib/rpg";
 
 const ACHIEVEMENT_DEFS = [
   { type: "first_habit", title: "First Step", description: "Complete your first habit", icon: "🌱", xpReward: 10 },
@@ -21,6 +22,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const prisma = getPrisma();
     const { habitId } = await params;
 
     const habit = await prisma.habit.findUnique({
@@ -74,7 +76,137 @@ export async function POST(
     }
 
     const xpEarned = habit.xpReward;
+    const coinsEarned = calculateCoinsFromHabit(xpEarned);
     const newBestStreak = Math.max(userData?.bestStreak || 0, newStreak);
+    const totalCompletions = (userData?.totalCompletions || 0) + 1;
+
+    let profile = await prisma.playerProfile.findUnique({
+      where: { userId: session.user.id },
+    });
+    let stats = await prisma.playerStats.findUnique({
+      where: { userId: session.user.id },
+    });
+
+    if (!profile) {
+      profile = await prisma.playerProfile.create({
+        data: { userId: session.user.id, rank: "E", title: "The Unawakened" },
+      });
+    }
+    if (!stats) {
+      stats = await prisma.playerStats.create({
+        data: { userId: session.user.id },
+      });
+    }
+
+    const oldLevel = calculateLevel(profile.totalXp);
+    const oldRankResult = calculateRank({
+      level: oldLevel,
+      totalXp: profile.totalXp,
+      bestStreak: userData?.bestStreak || 0,
+      totalCompletions: userData?.totalCompletions || 0,
+    });
+
+    const categoryMapping = STAT_CATEGORY_MAP.find(
+      (m) => m.category === habit.category
+    );
+    const statName = categoryMapping?.stat || "discipline";
+    const statIncrease = calculateStatIncrease(habit.category);
+    const statGains: Record<string, number> = {
+      [statName]: statIncrease,
+    };
+
+    let totalXpToAdd = xpEarned;
+
+    profile = await prisma.playerProfile.update({
+      where: { userId: session.user.id },
+      data: {
+        totalXp: { increment: xpEarned },
+        coins: { increment: coinsEarned },
+      },
+    });
+
+    await prisma.playerStats.update({
+      where: { userId: session.user.id },
+      data: {
+        [statName]: { increment: statIncrease },
+      },
+    });
+
+    const newLevel = calculateLevel(profile.totalXp);
+    let levelUp: { oldLevel: number; newLevel: number } | null = null;
+    if (newLevel > oldLevel) {
+      const xpBonus = getLevelUpXpBonus(newLevel);
+      totalXpToAdd += xpBonus;
+      profile = await prisma.playerProfile.update({
+        where: { userId: session.user.id },
+        data: { totalXp: { increment: xpBonus } },
+      });
+      levelUp = { oldLevel, newLevel };
+    }
+
+    const newRankResult = calculateRank({
+      level: newLevel,
+      totalXp: profile.totalXp,
+      bestStreak: newBestStreak,
+      totalCompletions,
+    });
+    let rankUp: { oldRank: string; newRank: string } | null = null;
+    if (newRankResult.rank !== oldRankResult.rank) {
+      rankUp = { oldRank: oldRankResult.rank, newRank: newRankResult.rank };
+    }
+
+    const activeQuests = await prisma.playerQuest.findMany({
+      where: { userId: session.user.id, status: "ACTIVE" },
+    });
+
+    const questProgress: Array<{
+      questId: string;
+      progress: number;
+      target: number;
+      completed: boolean;
+    }> = [];
+
+    for (const pq of activeQuests) {
+      const newProgress = pq.progress + 1;
+      const completed = newProgress >= pq.target;
+      await prisma.playerQuest.update({
+        where: { id: pq.id },
+        data: {
+          progress: newProgress,
+          ...(completed ? { status: "COMPLETED" as const } : {}),
+        },
+      });
+      questProgress.push({
+        questId: pq.questId,
+        progress: newProgress,
+        target: pq.target,
+        completed,
+      });
+    }
+
+    const activeBP = await prisma.battlePass.findFirst({
+      where: { isActive: true },
+    });
+
+    if (activeBP) {
+      const playerBP = await prisma.playerBattlePass.findUnique({
+        where: { userId: session.user.id },
+      });
+      if (playerBP && playerBP.battlePassId === activeBP.id) {
+        await prisma.playerBattlePass.update({
+          where: { userId: session.user.id },
+          data: { xp: { increment: xpEarned } },
+        });
+      } else if (!playerBP) {
+        await prisma.playerBattlePass.create({
+          data: {
+            userId: session.user.id,
+            battlePassId: activeBP.id,
+            xp: xpEarned,
+          },
+        });
+      }
+    }
 
     await prisma.userHabitData.update({
       where: { userId: session.user.id },
@@ -87,14 +219,17 @@ export async function POST(
       },
     });
 
-    const newAchievements: any[] = [];
+    const newAchievements: Array<{
+      id: string; userId: string; habitId: string | null;
+      type: string; title: string; description: string; icon: string; xpReward: number;
+      unlockedAt: Date | null;
+    }> = [];
     const existingAchievements = await prisma.achievement.findMany({
       where: { userId: session.user.id },
       select: { type: true },
     });
     const existingTypes = new Set(existingAchievements.map((a) => a.type));
 
-    const totalCompletions = (userData?.totalCompletions || 0) + 1;
     type CheckFn = () => boolean | Promise<boolean>;
     const checks: { type: string; check: CheckFn }[] = [
       { type: "first_habit", check: () => totalCompletions >= 1 },
@@ -145,6 +280,11 @@ export async function POST(
           data: { xp: { increment: def.xpReward } },
         });
 
+        await prisma.playerProfile.update({
+          where: { userId: session.user.id },
+          data: { totalXp: { increment: def.xpReward } },
+        });
+
         newAchievements.push(achievement);
       }
     }
@@ -153,11 +293,16 @@ export async function POST(
       success: true,
       data: {
         completion,
-        xpEarned,
+        xpEarned: totalXpToAdd,
         streak: newStreak,
         bestStreak: newBestStreak,
         totalCompletions,
+        coinsEarned,
+        statGains,
+        levelUp,
+        rankUp,
         newAchievements,
+        questProgress,
       },
     }, { status: 201 });
   } catch (error) {
@@ -179,6 +324,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const prisma = getPrisma();
     const { habitId } = await params;
 
     const habit = await prisma.habit.findUnique({
@@ -225,6 +371,14 @@ export async function DELETE(
         streak: newStreak,
         totalCompletions: { decrement: 1 },
         xp: { decrement: habit.xpReward },
+      },
+    });
+
+    await prisma.playerProfile.update({
+      where: { userId: session.user.id },
+      data: {
+        totalXp: { decrement: habit.xpReward },
+        coins: { decrement: calculateCoinsFromHabit(habit.xpReward) },
       },
     });
 

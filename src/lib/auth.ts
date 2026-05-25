@@ -122,7 +122,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || "USER";
+        token.role = (user as { role?: string }).role || "USER";
       }
       if (trigger === "update" && session) {
         token.name = session.name ?? token.name;
@@ -155,7 +155,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         await prisma.userHabitData.create({ data: { userId: user.id } });
       }
     },
-    async linkAccount({ user, account, profile }) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async linkAccount({ user, account, profile: _profile }) {
       if (account?.provider) {
         await prisma.auditLog.create({
           data: {
@@ -168,7 +169,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
       }
     },
-    async session({ session, token }) {
+    async session({ token }: { token: { sub?: string } }) {
       if (token?.sub) {
         await prisma.user.update({
           where: { id: token.sub },

@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 type Mode = "FOCUS" | "BREAK" | "LONG_BREAK";
 
-const MODES: { key: Mode; label: string; icon: any }[] = [
+const MODES: { key: Mode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "FOCUS", label: "Focus", icon: Timer },
   { key: "BREAK", label: "Break", icon: Coffee },
   { key: "LONG_BREAK", label: "Long Break", icon: Moon },
@@ -171,25 +171,11 @@ export default function PomodoroPage() {
     } catch {}
   }, [soundEnabled]);
 
-  useEffect(() => {
-    if (!isRunning) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      const store = usePomodoroStore.getState();
-      setRemainingTime(Math.max(0, store.remainingTime - 1));
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isRunning, setRemainingTime]);
+  const completeTimer = useCallback(() => {
+    setIsRunning(false);
+    playNotification();
 
-  useEffect(() => {
-    if (remainingTime === 0 && isRunning) {
-      setIsRunning(false);
-      playNotification();
-
+    setTimeout(() => {
       if (mode === "FOCUS") {
         incrementSessionsCompleted();
         const isLongBreak =
@@ -207,8 +193,28 @@ export default function PomodoroPage() {
         setRemainingTime(workDuration * 60);
         setIsBreak(false);
       }
+    }, 0);
+  }, [mode, sessionsCompleted, sessionsBeforeLongBreak, longBreakDuration, breakDuration, workDuration, setIsRunning, setIsBreak, setRemainingTime, incrementSessionsCompleted, playNotification]);
+
+  useEffect(() => {
+    if (!isRunning) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
     }
-  }, [remainingTime, isRunning, mode, sessionsCompleted, sessionsBeforeLongBreak, longBreakDuration, breakDuration, workDuration, setIsRunning, setIsBreak, setRemainingTime, incrementSessionsCompleted, playNotification]);
+    intervalRef.current = setInterval(() => {
+      const store = usePomodoroStore.getState();
+      setRemainingTime(Math.max(0, store.remainingTime - 1));
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning, setRemainingTime]);
+
+  useEffect(() => {
+    if (remainingTime === 0 && isRunning) {
+      completeTimer();
+    }
+  }, [remainingTime, isRunning, completeTimer]);
 
   const handleModeChange = useCallback(
     (newMode: Mode) => {

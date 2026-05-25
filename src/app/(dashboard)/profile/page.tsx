@@ -1,262 +1,180 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  Flame,
-  Target,
-  Trophy,
-  Lock,
-  Sparkles,
-  Star,
-} from "lucide-react";
+import { Crown, Star, Info, Loader2 } from "lucide-react";
+import { PlayerProfileHero } from "@/components/rpg/PlayerProfileHero";
+import { StatBars } from "@/components/rpg/StatBars";
+import { RankProgress } from "@/components/rpg/RankProgress";
+import { DailyRewardCard } from "@/components/rpg/DailyRewardCard";
 import { GlassCard } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
-import { useSession } from "next-auth/react";
-import { useXP } from "@/lib/hooks/use-xp";
-import { useAnalytics } from "@/lib/hooks/use-analytics";
-import { useAchievements } from "@/lib/hooks/use-achievements";
-import { LEVELS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
-import type { Achievement } from "@/lib/hooks/use-achievements";
+import { useRPGProfile, useDailyReward, useClaimDailyReward } from "@/lib/hooks/use-rpg";
+import { useRPGProfileStore, useRPGStatsStore } from "@/store";
+import { useShallow } from "zustand/react/shallow";
+import { RANKS, TITLES } from "@/lib/rpg";
 
 const stagger = {
-  container: { animate: { transition: { staggerChildren: 0.05 } } },
+  container: { animate: { transition: { staggerChildren: 0.06 } } },
   item: {
-    initial: { opacity: 0, y: 12 },
-    animate: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.35, ease: "easeOut" as const },
-    },
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
   },
 };
 
-function AchievementCard({
-  achievement,
-}: {
-  achievement: Achievement;
-}) {
-  const isUnlocked = !!achievement.unlockedAt;
+export default function RPGProfilePage() {
+  const { data, isPending, error } = useRPGProfile();
+  const { data: dailyData } = useDailyReward();
+  const claimDaily = useClaimDailyReward();
+  const setProfile = useRPGProfileStore((s) => s.setProfile);
+  const stats = useRPGStatsStore(
+    useShallow((s) => ({
+      strength: s.strength,
+      intelligence: s.intelligence,
+      discipline: s.discipline,
+      focus: s.focus,
+      endurance: s.endurance,
+      charisma: s.charisma,
+      wisdom: s.wisdom,
+      energy: s.energy,
+    }))
+  );
+  const setStats = useRPGStatsStore((s) => s.setStats);
 
-  return (
-    <motion.div
-      variants={stagger.item}
-      className={cn(
-        "rounded-xl border p-4 transition-all duration-200",
-        isUnlocked
-          ? "border-white/10 bg-white/5"
-          : "border-white/5 bg-white/[0.02] opacity-60"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg",
-            isUnlocked
-              ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border border-amber-500/20"
-              : "bg-white/5 border border-white/10"
-          )}
-        >
-          {isUnlocked ? achievement.icon : <Lock className="h-4 w-4 text-gray-500" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h4
-              className={cn(
-                "text-sm font-semibold",
-                isUnlocked ? "text-gray-100" : "text-gray-500"
-              )}
-            >
-              {achievement.title}
-            </h4>
-            {isUnlocked && (
-              <Badge variant="success" size="sm">
-                +{achievement.xpReward} XP
-              </Badge>
-            )}
-          </div>
-          <p
-            className={cn(
-              "text-xs mt-0.5",
-              isUnlocked ? "text-gray-400" : "text-gray-600"
-            )}
-          >
-            {achievement.description}
-          </p>
-          {isUnlocked && achievement.unlockedAt && (
-            <p className="text-[10px] text-gray-500 mt-1">
-              Unlocked{" "}
-              {new Date(achievement.unlockedAt).toLocaleDateString()}
-            </p>
-          )}
+  useEffect(() => {
+    if (data?.profile) {
+      setProfile({
+        rank: data.profile.rank,
+        title: data.profile.title,
+        coins: data.profile.coins,
+        prestigeLevel: data.profile.prestigeLevel,
+        auraColor: data.profile.auraColor,
+      });
+    }
+    if (data?.stats) {
+      setStats(data.stats);
+    }
+  }, [data, setProfile, setStats]);
+
+  const { rank, title, prestigeLevel } = useRPGProfileStore();
+
+  const rankDef = useMemo(
+    () => RANKS.find((r) => r.rank === rank) ?? RANKS[0],
+    [rank]
+  );
+
+  const titleInfo = useMemo(() => {
+    const found = Object.values(TITLES).find((t) => t.title === title);
+    return found ?? { title, description: "Current title", requirement: "" };
+  }, [title]);
+
+  const claimedDays = useMemo(() => {
+    return (dailyData?.claimedDays ?? []).map((d) => d.day);
+  }, [dailyData]);
+
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <p className="text-sm text-gray-500">Loading profile...</p>
         </div>
       </div>
-    </motion.div>
-  );
-}
+    );
+  }
 
-function StatsRow({
-  icon: Icon,
-  label,
-  value,
-  color,
-}: {
-  icon: any;
-  label: string;
-  value: string | number;
-  color: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-      <div
-        className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-xl",
-          color
-        )}
-      >
-        <Icon className="h-5 w-5" />
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <GlassCard className="p-8 text-center max-w-md">
+          <p className="text-red-400 text-lg font-semibold">Failed to load profile</p>
+          <p className="text-gray-400 text-sm mt-2">{(error as Error).message}</p>
+        </GlassCard>
       </div>
-      <div>
-        <p className="text-lg font-bold text-gray-100">{value}</p>
-        <p className="text-xs text-gray-500">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-export default function ProfilePage() {
-  const { data: session } = useSession();
-  const { data: xpData } = useXP();
-  const { data: analytics } = useAnalytics();
-  const user = session?.user;
-  const name = user?.name ?? null;
-  const email = user?.email ?? null;
-  const image = user?.image ?? null;
-  const level = xpData?.level ?? 1;
-  const totalXp = xpData?.totalXp ?? 0;
-
-  const currentLevelData = LEVELS.find((l) => l.level === level) ?? LEVELS[0];
-  const nextLevelData = LEVELS.find((l) => l.level === level + 1);
-  const prevLevelXp = currentLevelData.xpRequired;
-  const nextLevelXp = nextLevelData?.xpRequired ?? prevLevelXp + 1000;
-  const xpInLevel = totalXp - prevLevelXp;
-  const xpNeeded = nextLevelXp - prevLevelXp;
-  const xpProgress = Math.min(
-    100,
-    Math.round((xpInLevel / xpNeeded) * 100)
-  );
-
-  const { data: achievements = [] } = useAchievements();
-  const unlockedCount = useMemo(() => achievements.filter((a: Achievement) => a.unlockedAt).length, [achievements]);
+    );
+  }
 
   return (
     <motion.div
       variants={stagger.container}
       initial="initial"
       animate="animate"
-      className="max-w-2xl space-y-6"
+      className="max-w-4xl space-y-6"
     >
       <motion.div variants={stagger.item}>
-        <GlassCard className="p-6 flex flex-col items-center text-center">
-          <Avatar
-            src={image}
-            name={name ?? "Forger"}
-            size="xl"
-            className="mb-4"
-          />
-          <h1 className="text-xl font-bold text-gray-100">
-            {name ?? "Forger"}
-          </h1>
-          {email && (
-            <p className="text-sm text-gray-400 mt-0.5">{email}</p>
-          )}
-          <div className="mt-3 flex items-center gap-2">
-            <Badge variant="brand" size="md">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Level {level} &mdash; {currentLevelData.title}
-            </Badge>
-          </div>
-        </GlassCard>
+        <PlayerProfileHero />
       </motion.div>
 
       <motion.div variants={stagger.item}>
-        <GlassCard className="p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-200">
-              Experience
-            </span>
-            <span className="text-xs text-gray-500">
-              {totalXp.toLocaleString()} / {nextLevelXp.toLocaleString()} XP
-            </span>
-          </div>
-          <div className="h-3 rounded-full bg-white/5 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
-            />
-          </div>
-          {nextLevelData && (
-            <p className="text-xs text-gray-500 mt-2">
-              {nextLevelXp - totalXp} XP to Level {level + 1} &mdash;{" "}
-              {nextLevelData.title}
-            </p>
-          )}
-        </GlassCard>
+        <DailyRewardCard
+          claimedDays={claimedDays}
+          currentStreak={dailyData?.currentStreak ?? 0}
+          onClaim={() => claimDaily.mutate()}
+        />
       </motion.div>
 
-      <motion.div
-        variants={stagger.item}
-        className="grid grid-cols-3 gap-3"
-      >
-        <StatsRow
-          icon={Target}
-          label="Habits"
-          value={analytics?.summary.totalHabits ?? 0}
-          color="bg-blue-500/15 text-blue-400"
-        />
-        <StatsRow
-          icon={Flame}
-          label="Completions"
-          value={analytics?.summary.totalCompletions ?? 0}
-          color="bg-orange-500/15 text-orange-400"
-        />
-        <StatsRow
-          icon={Trophy}
-          label="Badges"
-          value={unlockedCount}
-          color="bg-amber-500/15 text-amber-400"
-        />
-      </motion.div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div variants={stagger.item}>
+          <GlassCard className="p-5">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500">
+              Player Stats
+            </h3>
+            <StatBars stats={stats} size="lg" />
+          </GlassCard>
+        </motion.div>
+
+        <motion.div variants={stagger.item} className="space-y-6">
+          <RankProgress />
+
+          <GlassCard className="p-5">
+            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-500">
+              Current Title
+            </h3>
+            <div className="flex items-start gap-3 rounded-xl bg-white/5 p-4">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: `${rankDef.color}20`, color: rankDef.color }}
+              >
+                <Crown className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-semibold text-gray-100">{titleInfo.title}</h4>
+                <p className="mt-0.5 text-sm text-gray-400">{titleInfo.description}</p>
+                {titleInfo.requirement && (
+                  <p className="mt-1 text-xs text-gray-500">{titleInfo.requirement}</p>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+
+          {prestigeLevel > 0 && (
+            <GlassCard className="p-5">
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-500">
+                Prestige
+              </h3>
+              <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 p-4">
+                <Star className="h-8 w-8 text-amber-400" />
+                <div>
+                  <p className="font-semibold text-amber-300">
+                    Prestige Level {prestigeLevel}
+                  </p>
+                  <p className="text-sm text-amber-400/70">
+                    Bonus: +{(prestigeLevel * 10).toLocaleString()}% XP
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+        </motion.div>
+      </div>
 
       <motion.div variants={stagger.item}>
         <GlassCard className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-semibold text-gray-100">
-                Achievements
-              </h2>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {unlockedCount} / {achievements.length} unlocked
-              </p>
-            </div>
-            <div className="flex items-center gap-1 text-sm text-gray-400">
-              <Star className="h-4 w-4 text-amber-400" />
-              <span>
-                {achievements
-                  .filter((a) => a.unlockedAt)
-                  .reduce((sum, a) => sum + a.xpReward, 0)}{" "}
-                XP
-              </span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {achievements.map((a) => (
-              <AchievementCard key={a.type} achievement={a} />
-            ))}
+          <div className="flex items-center gap-2 text-gray-400 mb-3">
+            <Info className="h-4 w-4" />
+            <span className="text-xs">
+              Complete habits, earn XP, and level up to unlock new ranks and titles.
+              Prestige resets your level but grants permanent XP bonuses.
+            </span>
           </div>
         </GlassCard>
       </motion.div>

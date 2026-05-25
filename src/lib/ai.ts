@@ -104,19 +104,15 @@ import { moderateInput } from "@/lib/ai-moderation";
 
 export async function getMotivation(userId: string, habits: { name: string; streak?: number }[]): Promise<string> {
   const prisma = await getDb();
-  const memories = await prisma.aiMemory.findMany({
-    where: { userId },
-    select: { key: true, value: true },
-  });
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: "You are a motivational habit coach. Be encouraging, specific, and personal. Keep responses under 150 words.",
+      content: "You are the System Voice from Solo Leveling — an all-knowing, epic narrator who speaks like an RPG game system. You address the user as a 'Player' or 'Hunter'. Use terms like 'Your journey continues', 'You have grown stronger', 'Daily Quest Assigned', 'Stat increased'. Be encouraging, specific, and personal, but speak with epic, cinematic energy. Keep responses under 150 words.",
     },
     {
       role: "user",
-      content: `My habits: ${JSON.stringify(habits)}. Give me a motivational message to keep going.`,
+      content: `I am a habit-building player. My current habits: ${JSON.stringify(habits)}. Give me a motivational System Voice message to keep going. Refer to me as Player.`,
     },
   ];
 
@@ -134,11 +130,11 @@ export async function getRoast(userId: string, habits: { name: string; streak?: 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: "You are a playful but caring habit coach who uses gentle roasting to motivate. Be funny but never mean. Keep responses under 150 words.",
+      content: "You are a stern but caring System Voice from an RPG world. You speak to the Player with tough love, like a mentor testing their resolve. Use terms like 'This is your wake-up call, Player', 'Your stats are suffering', 'Penalty Quest incoming'. Be funny but never mean. Keep responses under 150 words.",
     },
     {
       role: "user",
-      content: `My habits and progress: ${JSON.stringify(habits)}. Roast me a little to get me motivated.`,
+      content: `Player habits and progress: ${JSON.stringify(habits)}. Give me a System Voice roast to get me motivated.`,
     },
   ];
 
@@ -160,11 +156,11 @@ export async function getWeeklyReview(
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: "You are an analytical habit coach. Provide a weekly review with specific insights, patterns, and actionable advice. Keep responses under 200 words.",
+      content: "You are the System Voice delivering a Weekly Performance Review to a Player in an RPG habit game. Speak like an epic game system evaluating the Player's progress. Use terms like 'Weekly Report', 'Performance Analysis', 'Clearance Rate', 'Stat Growth'. Provide specific insights, patterns, and actionable advice. Keep responses under 200 words.",
     },
     {
       role: "user",
-      content: `My habits: ${JSON.stringify(habits)}. My completions this week: ${JSON.stringify(completions)}. Give me my weekly review.`,
+      content: `Player habits: ${JSON.stringify(habits)}. Player completions this week: ${JSON.stringify(completions)}. Deliver the weekly performance review as the System Voice.`,
     },
   ];
 
@@ -203,7 +199,7 @@ export async function getSuggestion(userId: string, habits: { name: string; cate
 export async function chatWithAI(
   userId: string,
   message: string,
-  context: { habits?: any[]; stats?: any }
+  context: { habits?: unknown[]; stats?: unknown }
 ): Promise<string> {
   const moderation = moderateInput(message);
   if (!moderation.safe) {
@@ -215,10 +211,10 @@ export async function chatWithAI(
     where: { userId },
     select: { key: true, value: true },
   });
-  const memoryMap = memories.reduce((acc: Record<string, any>, m: { key: string; value: any }) => {
+  const memoryMap = memories.reduce((acc: Record<string, unknown>, m: { key: string; value: unknown }) => {
     acc[m.key] = m.value;
     return acc;
-  }, {} as Record<string, any>);
+  }, {} as Record<string, unknown>);
 
   const previousMessages = await prisma.aiMessage.findMany({
     where: { userId },
@@ -236,7 +232,7 @@ export async function chatWithAI(
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are HabitForge AI, a personal habit coaching assistant. Context: ${JSON.stringify(context).slice(0, 500)}. Memories: ${JSON.stringify(memoryMap).slice(0, 300)}. Be friendly, supportive, and practical. Keep responses concise.`,
+      content: `You are the System Voice — an epic RPG game system interface speaking to a Player in a habit-building journey. You track their stats, quests, and progress like a game UI. Context: ${JSON.stringify(context).slice(0, 500)}. Memories: ${JSON.stringify(memoryMap).slice(0, 300)}. Speak like an RPG system — use terms like 'Player', 'Quest', 'Stat', 'Level Up', 'Achievement Unlocked'. Be supportive but maintain the epic, cinematic tone. Keep responses concise.`,
     },
     ...(historySummary ? [{ role: "user" as const, content: `Recent history:\n${historySummary}` }] : []),
     { role: "user", content: message },
@@ -332,16 +328,16 @@ export async function cleanupOldAiMessages(): Promise<number> {
   return result.count;
 }
 
-export async function storeMemory(userId: string, key: string, value: any): Promise<void> {
+export async function storeMemory(userId: string, key: string, value: unknown): Promise<void> {
   const prisma = await getDb();
   await prisma.aiMemory.upsert({
     where: { userId_key: { userId, key } },
-    update: { value },
-    create: { userId, key, value },
+    update: { value: JSON.parse(JSON.stringify(value)) },
+    create: { userId, key, value: JSON.parse(JSON.stringify(value)) },
   });
 }
 
-export async function retrieveMemory(userId: string, key: string): Promise<any | null> {
+export async function retrieveMemory(userId: string, key: string): Promise<unknown> {
   const prisma = await getDb();
   const memory = await prisma.aiMemory.findUnique({
     where: { userId_key: { userId, key } },

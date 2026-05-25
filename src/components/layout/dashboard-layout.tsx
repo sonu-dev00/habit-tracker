@@ -4,6 +4,7 @@ import { useState, lazy, Suspense, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
+import type { PlayerProfile } from "@/types";
 
 const CommandPalette = lazy(() =>
   import("@/components/ui/command-palette").then((m) => ({ default: m.CommandPalette }))
@@ -21,9 +22,10 @@ interface DashboardLayoutProps {
   };
   level?: number;
   xp?: number;
+  rpgProfile?: PlayerProfile;
 }
 
-export function DashboardLayout({ children, user, level, xp }: DashboardLayoutProps) {
+export function DashboardLayout({ children, user, level, xp, rpgProfile }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -35,6 +37,7 @@ export function DashboardLayout({ children, user, level, xp }: DashboardLayoutPr
         user={user}
         level={level}
         xp={xp}
+        rpgProfile={rpgProfile}
       />
 
       <div className="flex flex-1 flex-col md:pl-64">

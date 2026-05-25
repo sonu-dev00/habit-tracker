@@ -136,19 +136,19 @@ export function useDeleteHabits() {
 export function useToggleComplete() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ habitId, completed }: { habitId: string; completed: boolean }) => {
-      if (completed) {
+    mutationFn: async ({ habitId, wasCompleted }: { habitId: string; wasCompleted: boolean }) => {
+      if (wasCompleted) {
         return uncompleteHabit(habitId);
       }
       return completeHabit(habitId);
     },
-    onMutate: async ({ habitId, completed }) => {
+    onMutate: async ({ habitId, wasCompleted }) => {
       await qc.cancelQueries({ queryKey: ["habits"] });
       const previous = qc.getQueryData<Habit[]>(["habits"]);
       qc.setQueryData<Habit[]>(["habits"], (old) =>
         old?.map((h) =>
           h.id === habitId
-            ? completed
+            ? wasCompleted
               ? {
                   ...h,
                   totalCompletions: Math.max(0, h.totalCompletions - 1),

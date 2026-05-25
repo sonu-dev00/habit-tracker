@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { DollarSign, TrendingUp, CreditCard, FileText } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, FileText, type LucideIcon } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +15,7 @@ import {
 } from "recharts";
 import { useRevenue } from "@/lib/hooks/use-admin-data";
 
-function StatCard({ icon: Icon, label, value, sub, color }: { icon: any; label: string; value: string; sub?: string; color: string }) {
+function StatCard({ icon: Icon, label, value, sub, color }: { icon: LucideIcon; label: string; value: string; sub?: string; color: string }) {
   return (
     <GlassCard className="p-5">
       <div className="flex items-start justify-between">

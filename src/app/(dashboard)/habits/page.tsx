@@ -566,10 +566,10 @@ export default function HabitsPage() {
       );
 
       if (alreadyCompleted) {
-        toggleComplete.mutate({ habitId: id, completed: true });
+        toggleComplete.mutate({ habitId: id, wasCompleted: true });
       } else {
         const xpAmount = habit.xpReward + (habit.priority === "ESSENTIAL" ? 10 : habit.priority === "IMPORTANT" ? 5 : 0);
-        toggleComplete.mutate({ habitId: id, completed: false });
+        toggleComplete.mutate({ habitId: id, wasCompleted: false });
         addXp(xpAmount);
       }
     },

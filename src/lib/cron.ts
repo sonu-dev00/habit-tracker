@@ -21,7 +21,7 @@ function defineCronJob(name: string, schedule: string, handler: CronHandler, ena
 
 // ── Daily Jobs ──
 
-const resetDailyChallenges = defineCronJob(
+defineCronJob(
   "reset_daily_challenges",
   "0 0 * * *",
   async () => {
@@ -41,7 +41,7 @@ const resetDailyChallenges = defineCronJob(
   },
 );
 
-const sendDailyReminders = defineCronJob(
+defineCronJob(
   "send_daily_reminders",
   "0 8 * * *",
   async () => {
@@ -69,7 +69,7 @@ const sendDailyReminders = defineCronJob(
   },
 );
 
-const calculateStreaks = defineCronJob(
+defineCronJob(
   "calculate_streaks",
   "0 1 * * *",
   async () => {
@@ -114,7 +114,7 @@ const calculateStreaks = defineCronJob(
 
 // ── Weekly Jobs ──
 
-const sendWeeklyReviewEmails = defineCronJob(
+defineCronJob(
   "send_weekly_review_emails",
   "0 9 * * 1",
   async () => {
@@ -156,7 +156,7 @@ const sendWeeklyReviewEmails = defineCronJob(
   },
 );
 
-const cleanupOldSessions = defineCronJob(
+defineCronJob(
   "cleanup_old_sessions",
   "0 3 * * 1",
   async () => {
@@ -174,7 +174,7 @@ const cleanupOldSessions = defineCronJob(
   },
 );
 
-const generateWeeklyAnalytics = defineCronJob(
+defineCronJob(
   "generate_weekly_analytics",
   "0 4 * * 1",
   async () => {
@@ -200,7 +200,7 @@ const generateWeeklyAnalytics = defineCronJob(
 
 // ── Monthly Jobs ──
 
-const resetMonthlyStats = defineCronJob(
+defineCronJob(
   "reset_monthly_stats",
   "0 0 1 * *",
   async () => {
@@ -219,7 +219,7 @@ const resetMonthlyStats = defineCronJob(
   },
 );
 
-const cleanupOldAuditLogs = defineCronJob(
+defineCronJob(
   "cleanup_old_audit_logs",
   "0 2 1 * *",
   async () => {
@@ -234,7 +234,7 @@ const cleanupOldAuditLogs = defineCronJob(
   },
 );
 
-const generateRevenueReports = defineCronJob(
+defineCronJob(
   "generate_revenue_reports",
   "0 5 1 * *",
   async () => {

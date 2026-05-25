@@ -43,7 +43,7 @@ function SettingRow({
   description,
   children,
 }: {
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   description?: string;
   children: React.ReactNode;

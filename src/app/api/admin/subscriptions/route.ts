@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.min(100, parseInt(searchParams.get("limit") || "20"));
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (plan) where.plan = plan;
     if (status) where.status = status;
 

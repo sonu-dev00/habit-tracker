@@ -27,9 +27,9 @@ type AnalyticsJobData = { event: string; userId: string; properties?: Record<str
 type AIJobData = { type: string; userId: string; payload: Record<string, unknown> };
 type CleanupJobData = { target: string; olderThanDays: number };
 
-const handlers = new Map<string, Map<string, (data: any) => Promise<void>>>();
+const handlers = new Map<string, Map<string, (data: Record<string, unknown>) => Promise<void>>>();
 
-export function registerHandler(queue: QueueName, type: string, handler: (data: any) => Promise<void>): void {
+export function registerHandler(queue: QueueName, type: string, handler: (data: Record<string, unknown>) => Promise<void>): void {
   if (!handlers.has(queue)) handlers.set(queue, new Map());
   handlers.get(queue)!.set(type, handler);
 }

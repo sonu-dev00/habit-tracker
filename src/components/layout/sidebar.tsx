@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -20,12 +20,32 @@ import {
   Settings,
   Medal,
   LifeBuoy,
+  User,
+  Swords,
+  ShoppingBag,
+  TreePine,
+  ScrollText,
+  Users,
+  Shield,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { RANKS } from "@/lib/rpg";
+import type { PlayerProfile } from "@/types";
 
-const navItems = [
+const rpgNavItems = [
+  { href: "/profile", label: "Profile", icon: User },
+  { href: "/quests", label: "Quests", icon: ScrollText },
+  { href: "/dungeons", label: "Dungeons", icon: Swords },
+  { href: "/shop", label: "Shop", icon: ShoppingBag },
+  { href: "/skill-tree", label: "Skill Tree", icon: TreePine },
+  { href: "/battle-pass", label: "Battle Pass", icon: Shield },
+  { href: "/guild", label: "Guild", icon: Users },
+];
+
+const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/habits", label: "Habits", icon: CheckSquare },
   { href: "/templates", label: "Templates", icon: BookTemplate },
@@ -48,11 +68,18 @@ interface SidebarProps {
   };
   level?: number;
   xp?: number;
+  rpgProfile?: PlayerProfile;
 }
 
-export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0, rpgProfile }: SidebarProps) {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const rankDef = useMemo(() => {
+    const rank = rpgProfile?.rank ?? "E";
+    return RANKS.find((r) => r.rank === rank) ?? RANKS[0];
+  }, [rpgProfile?.rank]);
+
   const handleSignOut = useCallback(async () => {
     await signOut({ callbackUrl: "/" });
   }, []);
@@ -74,6 +101,38 @@ export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarPro
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen, onClose]);
+
+  function NavItem({ href, label, icon: Icon }: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }) {
+    const isActive = pathname === href || pathname.startsWith(href + "/");
+    return (
+      <Link
+        href={href}
+        onClick={onClose}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
+          isActive
+            ? "text-white"
+            : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+        )}
+      >
+        {isActive && (
+          <motion.div
+            layoutId="sidebar-active"
+            className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/20"
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+          />
+        )}
+        {isActive && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-full bg-gradient-to-b from-blue-400 to-purple-500" />
+        )}
+        <Icon className={cn(
+          "relative z-10 h-4 w-4 flex-shrink-0",
+          isActive ? "text-blue-400" : "text-gray-500 group-hover:text-gray-300 transition-colors"
+        )} />
+        <span className="relative z-10">{label}</span>
+      </Link>
+    );
+  }
 
   const sidebarContent = (
     <div
@@ -101,39 +160,18 @@ export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarPro
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "text-white"
-                  : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-              )}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/20"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-full bg-gradient-to-b from-blue-400 to-purple-500" />
-              )}
-              <Icon className={cn(
-                "relative z-10 h-4 w-4 flex-shrink-0",
-                isActive ? "text-blue-400" : "text-gray-500 group-hover:text-gray-300 transition-colors"
-              )} />
-              <span className="relative z-10">{item.label}</span>
-            </Link>
-          );
-        })}
+        {mainNavItems.map((item) => (
+          <NavItem key={item.href} {...item} />
+        ))}
+
+        <div className="my-3 border-t border-white/5 pt-3">
+          <span className="block px-3.5 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-600">
+            RPG
+          </span>
+          {rpgNavItems.map((item) => (
+            <NavItem key={item.href} {...item} />
+          ))}
+        </div>
       </nav>
 
       <div className="border-t border-white/10 p-4">
@@ -147,9 +185,21 @@ export function Sidebar({ isOpen, onClose, user, level = 1, xp = 0 }: SidebarPro
             <p className="text-sm font-medium text-gray-200 truncate">
               {user?.name || "User"}
             </p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Badge variant="brand" size="sm">Lvl {level}</Badge>
-              <span className="text-[11px] text-gray-500">{xp} XP</span>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <Badge
+                variant="brand"
+                size="sm"
+                style={{ borderColor: `${rankDef.color}40`, color: rankDef.color }}
+                className="border"
+              >
+                [{rankDef.rank}] Lvl {level}
+              </Badge>
+              {rpgProfile && (
+                <span className="flex items-center gap-1 text-[11px] text-yellow-400/80">
+                  <Coins className="h-3 w-3" />
+                  {rpgProfile.coins.toLocaleString()}
+                </span>
+              )}
             </div>
           </div>
         </div>

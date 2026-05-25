@@ -10,7 +10,7 @@ function getKey(messages: { role: string; content: string }[]): string {
   return `ai:${Buffer.from(summary).toString("base64").slice(0, 100)}`;
 }
 
-let memoryCache = new Map<string, CacheEntry>();
+const memoryCache = new Map<string, CacheEntry>();
 
 export async function getCachedResponse(messages: { role: string; content: string }[]): Promise<string | null> {
   const key = getKey(messages);

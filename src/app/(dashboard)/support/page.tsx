@@ -56,7 +56,7 @@ export default function SupportPage() {
       setShowForm(false);
     },
     onError: () => {
-      toast({ title: "Failed to submit", variant: "error" });
+      toast({ title: "Failed to submit", type: "error" });
     },
   });
 

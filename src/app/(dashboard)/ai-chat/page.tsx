@@ -32,7 +32,7 @@ type Message = {
 type QuickAction = {
   id: string;
   label: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
   prompt: string;
 };
@@ -215,11 +215,12 @@ export default function AIChatPage() {
         }
 
         addMessage("assistant", response);
-      } catch (err: any) {
-        if (err?.message?.includes("API key") || err?.message?.includes("401")) {
+      } catch (err: unknown) {
+        const e = err as { message?: string; status?: number };
+        if (e?.message?.includes("API key") || e?.message?.includes("401")) {
           setApiKeyConfigured(false);
         }
-        const isAuthError = err?.message?.includes("401") || err?.message?.includes("API key") || err?.status === 401;
+        const isAuthError = e?.message?.includes("401") || e?.message?.includes("API key") || e?.status === 401;
         addMessage(
           "assistant",
           isAuthError

@@ -1,12 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Search, LayoutDashboard, CheckSquare, BarChart3, MessageSquare, Timer, BookTemplate, Trophy, Sparkles, CreditCard, Medal, LifeBuoy, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
-const PAGES = [
+interface HabitData {
+  id: string;
+  name: string;
+  category: string;
+  streak: number;
+}
+
+interface HabitApiItem {
+  id: string;
+  name: string;
+  category: string;
+  streak?: number;
+}
+
+interface PageItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+type SearchResult = PageItem | HabitData;
+
+const PAGES: PageItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/habits", label: "Habits", icon: CheckSquare },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -20,17 +42,10 @@ const PAGES = [
   { href: "/settings", label: "Settings", icon: Sparkles },
 ];
 
-interface HabitResult {
-  id: string;
-  name: string;
-  category: string;
-  streak: number;
-}
-
 export function CommandPalette({ open: externalOpen, onClose }: { open: boolean; onClose: () => void }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [habits, setHabits] = useState<HabitResult[]>([]);
+  const [habits, setHabits] = useState<HabitData[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,25 +78,32 @@ export function CommandPalette({ open: externalOpen, onClose }: { open: boolean;
   }, [externalOpen, internalOpen, onClose]);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const t = setTimeout(() => {
       setQuery("");
-      setSelectedIndex(0);
       setHabits([]);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+      inputRef.current?.focus();
+    }, 0);
+    return () => clearTimeout(t);
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => setSelectedIndex(0), 0);
+    return () => clearTimeout(t);
+  }, [open, query]);
+
+  useEffect(() => {
     if (!query.trim()) {
-      setHabits([]);
-      return;
+      const t = setTimeout(() => setHabits([]), 0);
+      return () => clearTimeout(t);
     }
     const timeout = setTimeout(async () => {
       setLoading(true);
       try {
         const res = await fetch(`/api/habits?search=${encodeURIComponent(query)}&limit=10`);
         const json = await res.json();
-        setHabits((json.data ?? []).map((h: any) => ({
+        setHabits((json.data ?? []).map((h: HabitApiItem) => ({
           id: h.id,
           name: h.name,
           category: h.category,
@@ -93,14 +115,33 @@ export function CommandPalette({ open: externalOpen, onClose }: { open: boolean;
       }
     }, 200);
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, open]);
 
-  const filteredPages = query.trim()
-    ? PAGES.filter((p) => p.label.toLowerCase().includes(query.toLowerCase()))
-    : PAGES;
+  const filteredPages = useMemo(
+    () => query.trim()
+      ? PAGES.filter((p) => p.label.toLowerCase().includes(query.toLowerCase()))
+      : PAGES,
+    [query]
+  );
 
-  const results = [...filteredPages, ...habits];
+  const results: SearchResult[] = useMemo(
+    () => [...filteredPages, ...habits],
+    [filteredPages, habits]
+  );
+
   const totalItems = results.length;
+
+  const navigate = useCallback(
+    (item: SearchResult) => {
+      if ("href" in item) {
+        router.push(item.href);
+      } else {
+        router.push(`/habits`);
+      }
+      close();
+    },
+    [router, close]
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -114,19 +155,7 @@ export function CommandPalette({ open: externalOpen, onClose }: { open: boolean;
         navigate(results[selectedIndex]);
       }
     },
-    [results, selectedIndex, totalItems]
-  );
-
-  const navigate = useCallback(
-    (item: (typeof results)[number]) => {
-      if ("href" in item) {
-        router.push(item.href);
-      } else {
-        router.push(`/habits`);
-      }
-      close();
-    },
-    [router, close]
+    [results, selectedIndex, totalItems, navigate]
   );
 
   return (
@@ -153,7 +182,10 @@ export function CommandPalette({ open: externalOpen, onClose }: { open: boolean;
                 ref={inputRef}
                 type="text"
                 value={query}
-                onChange={(e) => setSelectedIndex(0)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSelectedIndex(0);
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder="Search pages or habits..."
                 className="flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-500 outline-none"

@@ -17,7 +17,7 @@ interface GuardOptions {
 export function apiGuard(handler: ApiHandler, options: GuardOptions = {}) {
   const { requireAuth = true, requireAdmin = false, requirePro = false, requireEmailVerified = false } = options;
 
-  return async (req: Request, context?: any): Promise<NextResponse> => {
+  return async (req: Request, context?: unknown): Promise<NextResponse> => {
     try {
       const session = await auth();
 
@@ -64,7 +64,8 @@ export function apiGuard(handler: ApiHandler, options: GuardOptions = {}) {
         }
       }
 
-      const response = await handler({ userId: session?.user?.id!, user: session!.user });
+      const safeUser = session?.user;
+      const response = await handler({ userId: safeUser?.id as string, user: safeUser as SessionUser });
 
       if (req.method !== "GET") {
         logApiRequest(session?.user?.id, req, response.status);

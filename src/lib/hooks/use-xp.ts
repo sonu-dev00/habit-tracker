@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { calculateLevel, getXpProgress } from "@/lib/rpg";
 
 type XPData = {
   xp: number;
@@ -15,21 +16,40 @@ export function useXP() {
   return useQuery({
     queryKey: ["xp"],
     queryFn: async (): Promise<XPData> => {
-      const res = await fetch("/api/analytics");
-      if (!res.ok) throw new Error("Failed to fetch XP data");
-      const json = await res.json();
-      const s = json.data.summary;
-      const xp = s.xp || 0;
-      const level = xp >= 10000 ? 10 : xp >= 7500 ? 9 : xp >= 5000 ? 8 : xp >= 3500 ? 7 : xp >= 2000 ? 6 : xp >= 1000 ? 5 : xp >= 500 ? 4 : xp >= 250 ? 3 : xp >= 100 ? 2 : 1;
+      const [profileRes, habitsRes] = await Promise.all([
+        fetch("/api/rpg/profile"),
+        fetch("/api/habits?limit=1"),
+      ]);
+      if (!profileRes.ok) throw new Error("Failed to fetch XP data");
+      const profileJson = await profileRes.json();
+      const profile = profileJson.data.profile;
+
+      let userHabitData = { streak: 0, bestStreak: 0, totalCompletions: 0 };
+      try {
+        if (habitsRes.ok) {
+          const habitsJson = await habitsRes.json();
+          if (habitsJson.data?.[0]?.streak !== undefined) {
+            userHabitData = {
+              streak: habitsJson.data[0].streak,
+              bestStreak: habitsJson.data.reduce((max: number, h: { bestStreak?: number }) => Math.max(max, h.bestStreak || 0), 0),
+              totalCompletions: habitsJson.data.reduce((sum: number, h: { totalCompletions?: number }) => sum + (h.totalCompletions || 0), 0),
+            };
+          }
+        }
+      } catch {}
+
+      const totalXp = profile.totalXp || 0;
+      const level = calculateLevel(totalXp);
+      const xpProgress = getXpProgress(totalXp);
       return {
-        xp,
+        xp: totalXp - xpProgress.currentLevelXp,
         level,
-        totalXp: xp,
-        streak: s.streak,
-        bestStreak: s.bestStreak,
-        totalCompletions: s.totalCompletions,
+        totalXp,
+        streak: userHabitData.streak,
+        bestStreak: userHabitData.bestStreak,
+        totalCompletions: userHabitData.totalCompletions,
       };
     },
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
   });
 }

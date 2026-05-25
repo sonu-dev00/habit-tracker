@@ -50,6 +50,84 @@ enum TicketStatus {
   CLOSED
 }
 
+enum PlayerRank {
+  E
+  D
+  C
+  B
+  A
+  S
+  NATIONAL
+  MONARCH
+}
+
+enum QuestType {
+  DAILY
+  WEEKLY
+  MAIN
+  SIDE
+  HIDDEN
+  BOSS
+}
+
+enum QuestStatus {
+  ACTIVE
+  COMPLETED
+  FAILED
+  CLAIMED
+}
+
+enum DungeonType {
+  DEEP_WORK
+  STUDY
+  FITNESS
+  MONK_MODE
+  CUSTOM
+}
+
+enum DungeonDifficulty {
+  NORMAL
+  HARD
+  EXTREME
+  HELL
+}
+
+enum ItemRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+  MYTHIC
+}
+
+enum ItemType {
+  COSMETIC
+  BOOSTER
+  THEME
+  AVATAR
+  SKILL_BOOK
+  TITLE
+  CONSUMABLE
+}
+
+enum GuildRole {
+  MEMBER
+  OFFICER
+  LEADER
+}
+
+enum SkillType {
+  PASSIVE
+  ACTIVE
+  ULTIMATE
+}
+
+enum BattlePassTier {
+  FREE
+  PREMIUM
+}
+
 model User {
   id                String    @id @default(cuid())
   name              String?
@@ -88,6 +166,271 @@ model User {
   referredUsers    Referral[]             @relation("Referral_referee")
   payments         PaymentHistory[]
   userFeedback     UserFeedback[]
+
+  // RPG System Relations
+  playerProfile     PlayerProfile?
+  playerStats       PlayerStats?
+  quests            PlayerQuest[]
+  dungeonRuns       DungeonRun[]
+  inventory         PlayerInventory[]
+  guildMember       GuildMember?
+  playerSkills      PlayerSkill[]
+  playerBattlePass  PlayerBattlePass?
+  dailyRewards      PlayerDailyReward[]
+  evolutionPath     PlayerEvolution?
+}
+
+model PlayerProfile {
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  title            String     @default("The Unawakened")
+  rank             PlayerRank @default(E)
+  totalXp          Int        @default(0)
+  coins            Int        @default(0)
+  prestigeLevel    Int        @default(0)
+  totalQuestsDone  Int        @default(0)
+  dungeonsCleared  Int        @default(0)
+  monstersDefeated Int        @default(0)
+  auraColor        String     @default("#39ff14")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PlayerStats {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  strength    Int     @default(1)
+  intelligence Int    @default(1)
+  discipline  Int     @default(1)
+  focus       Int     @default(1)
+  endurance   Int     @default(1)
+  charisma    Int     @default(1)
+  wisdom      Int     @default(1)
+  energy      Int     @default(100)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Quest {
+  id          String     @id @default(cuid())
+  type        QuestType  @default(DAILY)
+  title       String
+  description String
+  requirements Json
+  xpReward    Int        @default(50)
+  coinReward  Int        @default(10)
+  statRewards Json?
+  itemReward  String?
+  unlocksTitle String?
+  isActive    Boolean    @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+
+  playerQuests PlayerQuest[]
+}
+
+model PlayerQuest {
+  id          String      @id @default(cuid())
+  userId      String
+  questId     String
+  status      QuestStatus @default(ACTIVE)
+  progress    Int         @default(0)
+  target      Int         @default(1)
+  claimedAt   DateTime?
+  createdAt   DateTime    @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest Quest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@index([userId])
+}
+
+model Dungeon {
+  id          String           @id @default(cuid())
+  type        DungeonType      @default(DEEP_WORK)
+  difficulty  DungeonDifficulty @default(NORMAL)
+  name        String
+  description String
+  durationMin Int              @default(25)
+  xpReward    Int              @default(100)
+  coinReward  Int              @default(20)
+  statReward  String?
+  requiredLevel Int            @default(1)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+
+  runs DungeonRun[]
+}
+
+model DungeonRun {
+  id          String     @id @default(cuid())
+  userId      String
+  dungeonId   String
+  completed   Boolean    @default(false)
+  durationSec Int        @default(0)
+  xpEarned    Int        @default(0)
+  coinEarned  Int        @default(0)
+  bossKilled  Boolean    @default(false)
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dungeon Dungeon @relation(fields: [dungeonId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ShopItem {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  type        ItemType  @default(COSMETIC)
+  rarity      ItemRarity @default(COMMON)
+  price       Int
+  effect      Json?
+  isLimited   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  inventory PlayerInventory[]
+}
+
+model PlayerInventory {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    String
+  quantity  Int      @default(1)
+  isEquipped Boolean @default(false)
+  acquiredAt DateTime @default(now())
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId])
+}
+
+model Guild {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  logo        String?
+  level       Int      @default(1)
+  xp          Int      @default(0)
+  requiredRank PlayerRank @default(E)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members GuildMember[]
+}
+
+model GuildMember {
+  id        String    @id @default(cuid())
+  guildId   String
+  userId    String    @unique
+  role      GuildRole @default(MEMBER)
+  joinedAt  DateTime  @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+}
+
+model Skill {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  type        SkillType @default(PASSIVE)
+  effect      Json
+  requiredLevel Int     @default(1)
+  requiredRank PlayerRank @default(E)
+  price       Int       @default(0)
+  icon        String    @default("zap")
+  createdAt   DateTime  @default(now())
+
+  playerSkills PlayerSkill[]
+}
+
+model PlayerSkill {
+  id        String   @id @default(cuid())
+  userId    String
+  skillId   String
+  level     Int      @default(1)
+  isActive  Boolean  @default(false)
+  unlockedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId])
+}
+
+model BattlePass {
+  id          String   @id @default(cuid())
+  season      Int
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tiers BattlePassTierDef[]
+  players PlayerBattlePass[]
+}
+
+model BattlePassTierDef {
+  id            String        @id @default(cuid())
+  battlePassId  String
+  tier          Int
+  xpRequired    Int
+  freeReward    Json
+  premiumReward Json
+
+  battlePass BattlePass @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
+
+  @@index([battlePassId])
+}
+
+model PlayerBattlePass {
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  battlePassId  String
+  tier          BattlePassTier @default(FREE)
+  level         Int            @default(0)
+  xp            Int            @default(0)
+  claimedTiers  Json           @default("[]")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  battlePass BattlePass @relation(fields: [battlePassId], references: [id], onDelete: Cascade)
+
+  @@index([battlePassId])
+}
+
+model PlayerDailyReward {
+  id        String   @id @default(cuid())
+  userId    String
+  day       Int      @default(1)
+  claimedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([userId])
+}
+
+model PlayerEvolution {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  path      String   @default("shadow")
+  stage     Int      @default(1)
+  unlockedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {

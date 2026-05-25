@@ -52,6 +52,11 @@ export function StatsSkeleton({ className }: SkeletonProps) {
   );
 }
 
+const CHART_HEIGHTS = [
+  "30%", "45%", "60%", "35%", "70%", "50%",
+  "40%", "65%", "55%", "25%", "75%", "45%",
+];
+
 export function ChartSkeleton({ className }: SkeletonProps) {
   return (
     <div
@@ -62,13 +67,11 @@ export function ChartSkeleton({ className }: SkeletonProps) {
     >
       <Skeleton className="h-4 w-1/4 mb-6" />
       <div className="flex items-end gap-2 h-40">
-        {Array.from({ length: 12 }).map((_, i) => (
+        {CHART_HEIGHTS.map((h, i) => (
           <Skeleton
             key={i}
             className="flex-1"
-            style={{
-              height: `${Math.random() * 60 + 20}%`,
-            }}
+            style={{ height: h }}
           />
         ))}
       </div>

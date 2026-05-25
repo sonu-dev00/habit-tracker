@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Shield, ShieldOff, Eye, CheckCircle, Ban, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Shield, Eye, CheckCircle, Ban, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,25 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminUsers, useUpdateUser } from "@/lib/hooks/use-admin-data";
 
+interface AdminUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  banned: boolean;
+  createdAt: string;
+  image: string | null;
+  plan?: string;
+  subscription?: { plan?: string; status?: string } | null;
+  userHabitData?: { streak?: number; totalCompletions?: number; xp?: number } | null;
+  banReason?: string | null;
+  _count?: { habits: number };
+}
+
 export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -28,7 +43,8 @@ export default function AdminUsersPage() {
   const total = data?.pagination?.total ?? 0;
 
   useEffect(() => {
-    setPage(1);
+    const timer = setTimeout(() => setPage(1), 0);
+    return () => clearTimeout(timer);
   }, [search, roleFilter, statusFilter, planFilter]);
 
   async function handleAction(userId: string, action: string) {

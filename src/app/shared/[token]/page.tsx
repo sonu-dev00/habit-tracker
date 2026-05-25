@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Sparkles, Heart, Dumbbell, Brain, Briefcase, BookOpen, Users, DollarSign, Palette, Star } from "lucide-react";
 
-const CATEGORY_ICONS: Record<string, any> = {
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HEALTH: Heart, FITNESS: Dumbbell, MIND: Brain, WORK: Briefcase,
   LEARNING: BookOpen, SOCIAL: Users, FINANCE: DollarSign, CREATIVE: Palette, SPIRITUAL: Star, OTHER: Sparkles,
 };

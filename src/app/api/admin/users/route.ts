@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const plan = searchParams.get("plan");
 
-    const where: Record<string, any> = {};
+    const where: Record<string, unknown> = {};
 
     if (search) {
       where.OR = [

@@ -18,7 +18,7 @@ interface Template {
   frequency: HabitFrequency;
 }
 
-const CATEGORY_ICONS: Record<string, any> = {
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HEALTH: Heart,
   FITNESS: Dumbbell,
   MIND: Brain,

@@ -12,15 +12,16 @@ function VerifyContent() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage("No verification token provided.");
-      return;
-    }
+    const timer = setTimeout(async () => {
+      if (!token) {
+        setStatus("error");
+        setMessage("No verification token provided.");
+        return;
+      }
 
-    fetch(`/api/auth/verify-email?token=${token}`)
-      .then((res) => res.json())
-      .then((data) => {
+      try {
+        const res = await fetch(`/api/auth/verify-email?token=${token}`);
+        const data = await res.json();
         if (data.success) {
           setStatus("success");
           setMessage(data.message);
@@ -28,11 +29,12 @@ function VerifyContent() {
           setStatus("error");
           setMessage(data.error || "Verification failed.");
         }
-      })
-      .catch(() => {
+      } catch {
         setStatus("error");
         setMessage("An unexpected error occurred.");
-      });
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [token]);
 
   return (
